@@ -1,0 +1,7 @@
+# blpapi is NOT on PyPI - install it from Bloomberg's own package index:
+#   pip install --index-url=https://blpapi.bloomberg.com/repository/releases/python/simple/ blpapi
+blpapi>=3.24
+
+# for examples/dashboard
+fastapi>=0.110
+uvicorn>=0.29

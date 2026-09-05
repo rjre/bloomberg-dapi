@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Global Macro — Morning Brief</title>
+<style>
+  :root {
+    --bg: #0a0c10;
+    --panel: #12151b;
+    --panel-border: #232833;
+    --text: #e8ecf1;
+    --muted: #7c8494;
+    --accent: #ffb020;
+    --up: #22c55e;
+    --down: #ef4444;
+    --flash-up: rgba(34, 197, 94, 0.28);
+    --flash-down: rgba(239, 68, 68, 0.28);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  .mono { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace; }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--panel-border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+  header .title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  header .title small {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    text-transform: none;
+    margin-top: 2px;
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .status .clock { font-size: 18px; color: var(--text); }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    display: inline-block; margin-right: 6px;
+    background: var(--up);
+    box-shadow: 0 0 8px var(--up);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .dot.offline {
+    background: var(--down);
+    box-shadow: 0 0 8px var(--down);
+    animation: none;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  main { padding: 24px 28px 60px; max-width: 1500px; margin: 0 auto; }
+
+  .pulse-card {
+    background: linear-gradient(135deg, #161a22, #12151b);
+    border: 1px solid var(--panel-border);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+  }
+  .pulse-card .label {
+    font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 8px;
+  }
+  .pulse-card .text { font-size: 15px; line-height: 1.6; color: var(--text); }
+  .pulse-card .caption { font-size: 11px; color: var(--muted); margin-top: 10px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 18px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .panel h2 {
+    margin: 0; padding: 12px 16px;
+    font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--muted); border-bottom: 1px solid var(--panel-border);
+    font-weight: 700;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 9px 16px; font-size: 13.5px; border-top: 1px solid #1a1f28; transition: background-color 0.6s ease; }
+  tr:first-child td { border-top: none; }
+  td.label { color: var(--text); font-weight: 500; }
+  td.num { text-align: right; white-space: nowrap; }
+  td.chg.up { color: var(--up); }
+  td.chg.down { color: var(--down); }
+  td.spark { width: 74px; padding-right: 12px; }
+  td.flash-up { background-color: var(--flash-up); }
+  td.flash-down { background-color: var(--flash-down); }
+
+  .movers-panel { grid-column: 1 / -1; }
+  .mover-row { display: flex; align-items: center; gap: 12px; padding: 8px 16px; }
+  .mover-row .m-label { width: 150px; flex-shrink: 0; font-size: 13px; }
+  .mover-row .m-bar-track { flex: 1; height: 10px; background: #1a1f28; border-radius: 5px; overflow: hidden; }
+  .mover-row .m-bar { height: 100%; border-radius: 5px; }
+  .mover-row .m-bar.up { background: var(--up); }
+  .mover-row .m-bar.down { background: var(--down); }
+  .mover-row .m-val { width: 70px; text-align: right; font-size: 13px; flex-shrink: 0; }
+
+  footer {
+    text-align: center; color: var(--muted); font-size: 12px;
+    padding: 20px; border-top: 1px solid var(--panel-border); margin-top: 30px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">Global Macro<small>Morning Brief — live via Bloomberg Desktop API</small></div>
+  <div class="status">
+    <span><span id="statusDot" class="dot"></span><span id="statusText">connecting…</span></span>
+    <span>as of <span id="asOf" class="mono">—</span></span>
+    <span class="clock mono" id="clock">--:--:--</span>
+  </div>
+</header>
+
+<main>
+  <div class="pulse-card">
+    <div class="label">Market Pulse</div>
+    <div class="text" id="pulseText">Waiting for the first data refresh…</div>
+    <div class="caption">Auto-generated from the live figures below — Bloomberg News API is not entitled on this Terminal, so this stands in for a live newsflow feed.</div>
+  </div>
+
+  <div class="grid" id="categoryGrid"></div>
+
+  <div class="panel movers-panel" style="margin-top:18px;">
+    <h2>Market Movers (today, this universe)</h2>
+    <div id="movers"></div>
+  </div>
+</main>
+
+<footer>Data sourced live from a locally running Bloomberg Terminal via the Desktop API (blpapi). Refreshes every 3 seconds.</footer>
+
+<script>
+const CATEGORY_ORDER = ["Equities", "Rates", "FX", "Commodities", "Volatility"];
+let history = {};
+let previousValues = {};
+
+function sparklinePath(points) {
+  if (!points || points.length < 2) return null;
+  const values = points.map(p => p.close);
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max - min) || 1;
+  const w = 64, h = 22, pad = 2;
+  const step = (w - pad * 2) / (values.length - 1);
+  const coords = values.map((v, i) => {
+    const x = pad + i * step;
+    const y = h - pad - ((v - min) / range) * (h - pad * 2);
+    return [x, y];
+  });
+  const d = coords.map((c, i) => (i === 0 ? "M" : "L") + c[0].toFixed(1) + "," + c[1].toFixed(1)).join(" ");
+  const up = values[values.length - 1] >= values[0];
+  return { d, up, w, h };
+}
+
+function sparklineSvg(ticker) {
+  const spark = sparklinePath(history[ticker]);
+  if (!spark) return "";
+  const color = spark.up ? "var(--up)" : "var(--down)";
+  return `<svg width="${spark.w}" height="${spark.h}" viewBox="0 0 ${spark.w} ${spark.h}">
+    <path d="${spark.d}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function fmtLast(row) {
+  if (row.last === null || row.last === undefined) return "—";
+  if (row.isRate) return row.last.toFixed(3) + "%";
+  return row.last.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
+function fmtChg(row) {
+  if (row.isRate) {
+    if (row.chgNet === null || row.chgNet === undefined) return "—";
+    const bps = row.chgNet * 100;
+    return (bps >= 0 ? "+" : "") + bps.toFixed(1) + "bp";
+  }
+  if (row.chgPct === null || row.chgPct === undefined) return "—";
+  return (row.chgPct >= 0 ? "+" : "") + row.chgPct.toFixed(2) + "%";
+}
+
+function isUp(row) {
+  return row.isRate ? (row.chgNet || 0) >= 0 : (row.chgPct || 0) >= 0;
+}
+
+function renderCategories(categories) {
+  const grid = document.getElementById("categoryGrid");
+  grid.innerHTML = "";
+  for (const cat of CATEGORY_ORDER) {
+    const rows = categories[cat] || [];
+    const panel = document.createElement("div");
+    panel.className = "panel";
+    const rowsHtml = rows.map(row => {
+      const up = isUp(row);
+      const chgClass = up ? "up" : "down";
+      const key = row.ticker;
+      const prev = previousValues[key];
+      let flashClass = "";
+      if (prev !== undefined && row.last !== null && prev !== row.last) {
+        flashClass = row.last > prev ? "flash-up" : "flash-down";
+      }
+      previousValues[key] = row.last;
+      return `<tr>
+        <td class="label">${row.label}</td>
+        <td class="num spark">${sparklineSvg(row.ticker)}</td>
+        <td class="num mono ${flashClass}" data-ticker="${row.ticker}">${fmtLast(row)}</td>
+        <td class="num mono chg ${chgClass}">${fmtChg(row)}</td>
+      </tr>`;
+    }).join("");
+    panel.innerHTML = `<h2>${cat}</h2><table><tbody>${rowsHtml}</tbody></table>`;
+    grid.appendChild(panel);
+  }
+}
+
+function renderMovers(movers) {
+  const el = document.getElementById("movers");
+  if (!movers.length) { el.innerHTML = '<div style="padding:16px;color:var(--muted)">No data yet.</div>'; return; }
+  const maxAbs = Math.max(...movers.map(m => Math.abs(m.chgPct))) || 1;
+  el.innerHTML = movers.map(m => {
+    const up = m.chgPct >= 0;
+    const widthPct = (Math.abs(m.chgPct) / maxAbs) * 100;
+    return `<div class="mover-row">
+      <div class="m-label">${m.label}</div>
+      <div class="m-bar-track"><div class="m-bar ${up ? 'up' : 'down'}" style="width:${widthPct}%"></div></div>
+      <div class="m-val mono ${up ? 'up' : 'down'}" style="color:var(${up ? '--up' : '--down'})">${(up?'+':'')}${m.chgPct.toFixed(2)}%</div>
+    </div>`;
+  }).join("");
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("/api/snapshot");
+    const data = await res.json();
+    document.getElementById("statusDot").className = "dot" + (data.connected ? "" : " offline");
+    document.getElementById("statusText").textContent = data.connected ? "live" : "reconnecting…";
+    if (data.asOf) {
+      document.getElementById("asOf").textContent = new Date(data.asOf).toLocaleTimeString();
+    }
+    document.getElementById("pulseText").textContent = data.pulse || "";
+    renderCategories(data.categories || {});
+    renderMovers(data.movers || []);
+  } catch (e) {
+    document.getElementById("statusDot").className = "dot offline";
+    document.getElementById("statusText").textContent = "connection lost";
+  }
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch("/api/history");
+    history = await res.json();
+  } catch (e) { /* sparklines just won't render */ }
+}
+
+function tickClock() {
+  document.getElementById("clock").textContent = new Date().toLocaleTimeString();
+}
+
+(async function init() {
+  await loadHistory();
+  await refresh();
+  setInterval(refresh, 3000);
+  setInterval(tickClock, 1000);
+  tickClock();
+})();
+</script>
+</body>
+</html>
