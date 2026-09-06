@@ -149,6 +149,7 @@
     <span><span id="statusDot" class="dot"></span><span id="statusText">connecting…</span></span>
     <span>as of <span id="asOf" class="mono">—</span></span>
     <span class="clock mono" id="clock">--:--:--</span>
+    <span>London</span>
   </div>
 </header>
 
@@ -220,10 +221,15 @@ function isUp(row) {
   return row.isRate ? (row.chgNet || 0) >= 0 : (row.chgPct || 0) >= 0;
 }
 
+// Always London time (Europe/London handles the BST/GMT switch itself -
+// no manual DST math needed), regardless of the machine's own timezone.
+function fmtLondonTime(date) {
+  return date.toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour12: false });
+}
+
 function fmtLastUpdate(row) {
   if (!row.lastUpdate) return "";
-  const t = new Date(row.lastUpdate).toLocaleTimeString(undefined, { hour12: false });
-  return `<span class="ts">${t}</span>`;
+  return `<span class="ts">${fmtLondonTime(new Date(row.lastUpdate))}</span>`;
 }
 
 function renderCategories(categories) {
@@ -277,7 +283,7 @@ async function refresh() {
     document.getElementById("statusDot").className = "dot" + (data.connected ? "" : " offline");
     document.getElementById("statusText").textContent = data.connected ? "live" : "reconnecting…";
     if (data.asOf) {
-      document.getElementById("asOf").textContent = new Date(data.asOf).toLocaleTimeString();
+      document.getElementById("asOf").textContent = fmtLondonTime(new Date(data.asOf));
     }
     document.getElementById("pulseText").textContent = data.pulse || "";
     renderCategories(data.categories || {});
@@ -296,7 +302,7 @@ async function loadHistory() {
 }
 
 function tickClock() {
-  document.getElementById("clock").textContent = new Date().toLocaleTimeString();
+  document.getElementById("clock").textContent = fmtLondonTime(new Date());
 }
 
 (async function init() {
