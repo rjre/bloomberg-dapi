@@ -84,11 +84,11 @@ can't be broken by a corporate firewall blocking outbound script hosts.
 |---|---|
 | `session.py` | `BLPSession` — context-managed wrapper around one `blpapi.Session` |
 | `worker.py` | `BLPWorker` — a dedicated background thread owning the session, serialising concurrent callers through a job queue (needed the moment more than one part of your app talks to Bloomberg at once — see below) |
-| `reference.py` | `reference_data()` — current field values (`=BDP()` equivalent) |
-| `historical.py` | `historical_data()` — time series over a date range (`=BDH()` equivalent) |
-| `intraday.py` | `intraday_bars()` / `intraday_ticks()` — granular intraday history |
+| `reference.py` | `reference_data()` — current field values (`=BDP()` equivalent). Metered - see "Rate limits", don't poll this in a loop |
+| `historical.py` | `historical_data()` — time series over a date range (`=BDH()` equivalent). Metered - fine for a one-time pull, not a repeated one |
+| `intraday.py` | `intraday_bars()` / `intraday_ticks()` — granular intraday history. Metered, same caveat |
 | `search.py` | `search_securities()` — ticker/instrument lookup |
-| `subscription.py` | `MarketDataSubscriber` — real-time streaming quotes |
+| `subscription.py` | `MarketDataSubscriber` — real-time streaming quotes via `//blp/mktdata`. This is the mechanism for a "live" view - subscribe once, consume the push stream. `listen()` yields per-security `{"error": ...}` entries for a failed subscription (doesn't kill the rest of the batch) and `{"heartbeat": True}` on each timeout with no event (so a caller can make time-based decisions - e.g. "reconnect after 30 minutes of nothing but errors" - even when nothing is flowing) |
 | `util.py` | `BloombergResponseError` — raised on a top-level Bloomberg `responseError` (see "Rate limits" below); `element_to_dict`/`to_python` internal helpers |
 
 ```python
@@ -110,24 +110,47 @@ owns the session exclusively; everyone else calls `.submit(fn, *args)` and
 gets a `concurrent.futures.Future` back. Both `app/` and
 `examples/dashboard/` use it.
 
-## Rate limits — read this before changing the refresh interval
+## Rate limits — subscribe, don't poll
 
-Bloomberg **meters daily data capacity** on the Desktop API. An early version
-of this dashboard polled every 3 seconds; left running unattended overnight,
-it exhausted a full day's quota (confirmed via a Bloomberg `responseError`:
-`DAILY_CAPACITY_REACHED`). `reference_data`/`historical_data`/`intraday_*`
-used to swallow this silently (a `responseError` message has no
-`securityData`, so it looked exactly like "no data" - real live debugging was
-needed to find the actual cause). They now raise `BloombergResponseError`
-instead.
+Bloomberg **meters daily data capacity** on `reference_data()`/
+`historical_data()`/`intraday_*` - these are "pull" requests, and Bloomberg
+counts them against a daily quota specifically to stop the API being used as
+a bulk data-export tool. An early version of this dashboard polled
+`reference_data()` every 3 seconds to build a "live" view; left running
+unattended overnight, it exhausted a full day's quota (confirmed via a
+Bloomberg `responseError`: `DAILY_CAPACITY_REACHED`). Those functions used to
+swallow this silently too (a `responseError` message has no `securityData`,
+so it looked exactly like "no data" - real live debugging was needed to find
+the actual cause). They now raise `BloombergResponseError` instead.
 
-Both apps now poll every **60 seconds** (`REFRESH_SECONDS` in
-`app/main.py` / `examples/dashboard/server.py`) — plenty for a macro
-dashboard, nowhere near daily capacity — and back off to 30 minutes
-(`CAPACITY_BACKOFF_SECONDS`) if the limit is ever hit again, rather than
-continuing to hammer an already-exhausted quota. If you widen the instrument
-universe or shorten the interval, watch for `BloombergResponseError` and
-consider whether your firm's daily capacity can actually support it.
+**The actual fix wasn't a longer poll interval - it was to stop polling.**
+Both apps now use `MarketDataSubscriber` (`bdapi/subscription.py`) to
+subscribe once, at startup, to every instrument in the universe, then just
+consume the continuous push stream for as long as the app runs. This is the
+same mechanism Bloomberg's own Excel Add-in uses for live-linked cells -
+subscribe once, no repeated "pull" per update, which is why an Excel sheet
+with hundreds of live securities can sit open all day with no issue. A
+one-time subscribe is a world away from thousands of repeated pulls.
+
+Subscription fields are the real-time siblings of the reference-data fields,
+found by walking the `//blp/mktdata` service's own schema directly
+(`service.getEventDefinition(0).typeDefinition()`, 1903 real fields) rather
+than guessing: `LAST_PRICE`, `RT_PX_CHG_NET_1D`, `RT_PX_CHG_PCT_1D`, `HIGH`,
+`LOW` (an earlier attempt used `NET_CHANGE`, which isn't even a valid field
+in this schema, and separately computed percent change from last/net-change
+instead of just subscribing to the field Bloomberg already provides for it -
+both wrong, fixed).
+
+A subscription doesn't self-heal on its own once broken (e.g. by the same
+daily capacity limit - subscriptions are metered too, at least on this
+account: confirmed via a `SubscriptionFailure` status event, same
+`DAILY_CAPACITY_REACHED` reason, so switching to subscriptions doesn't help
+*while* the limit is active, only afterwards). Both apps track per-instrument
+failures and, if any are still failing after 30 minutes
+(`RESUBSCRIBE_AFTER_SECONDS`), tear down and re-subscribe the whole batch -
+verified working with a shortened timer. `historical_data()` is still used,
+but only once at startup to seed the sparklines - a single small pull, not a
+repeated one.
 
 ## On "newsflow"
 
@@ -163,3 +186,20 @@ side-channel API client has no business working around.
 - `app/` desktop window — verified opening and rendering correctly as a real
   native window on this machine (2026-09-06), both as a plain `python main.py`
   process and as the packaged standalone `GlobalMacroBrief.exe`.
+- `MarketDataSubscriber` per-security error handling — confirmed a failure on
+  one security doesn't kill the batch's stream for the other 26 (2026-09-06,
+  tested against all 27 tickers simultaneously).
+- The `RESUBSCRIBE_AFTER_SECONDS` reconnect logic — confirmed it actually
+  fires (with a shortened timer) rather than silently hanging forever once
+  every subscription in a batch has failed, which is what the `{"heartbeat":
+  True}` yield in `listen()` exists to prevent (2026-09-06).
+- `LAST_PRICE`, `RT_PX_CHG_NET_1D`, `RT_PX_CHG_PCT_1D`, `HIGH`, `LOW` —
+  confirmed present in `//blp/mktdata`'s own schema (1903 fields, walked
+  directly via `service.getEventDefinition(0).typeDefinition()`), and
+  confirmed they pass Bloomberg's own field validation (subscribing with them
+  fails on `DAILY_CAPACITY_REACHED`, never on a field error) (2026-09-06).
+  **Not yet verified**: actual live tick values once capacity resets - today's
+  daily quota was exhausted before this fix was in place, so every live test
+  above still failed at the (correctly surfaced) `DAILY_CAPACITY_REACHED`
+  stage. Everything up to that point is verified; the tick data itself isn't
+  yet.

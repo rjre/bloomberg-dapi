@@ -54,6 +54,11 @@ ALL_TICKERS: List[str] = [t for group in UNIVERSE.values() for t, _ in group]
 LABELS: dict = {t: label for group in UNIVERSE.values() for t, label in group}
 CATEGORY_OF: dict = {t: cat for cat, group in UNIVERSE.items() for t, _ in group}
 
+# Reference-data field names, for one-off reference_data()/historical_data()
+# lookups - NOT what the live dashboard/app use for their subscription-based
+# view (that's SUBSCRIPTION_FIELDS in app/main.py and examples/dashboard/
+# server.py: LAST_PRICE/NET_CHANGE/HIGH/LOW). Don't poll reference_data() with
+# these fields in a loop to build a "live" view - see README.md "Rate limits".
 FIELDS = ["PX_LAST", "CHG_PCT_1D", "CHG_NET_1D", "PX_HIGH", "PX_LOW"]
 
 
