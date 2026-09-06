@@ -195,11 +195,18 @@ side-channel API client has no business working around.
   True}` yield in `listen()` exists to prevent (2026-09-06).
 - `LAST_PRICE`, `RT_PX_CHG_NET_1D`, `RT_PX_CHG_PCT_1D`, `HIGH`, `LOW` —
   confirmed present in `//blp/mktdata`'s own schema (1903 fields, walked
-  directly via `service.getEventDefinition(0).typeDefinition()`), and
-  confirmed they pass Bloomberg's own field validation (subscribing with them
-  fails on `DAILY_CAPACITY_REACHED`, never on a field error) (2026-09-06).
-  **Not yet verified**: actual live tick values once capacity resets - today's
-  daily quota was exhausted before this fix was in place, so every live test
-  above still failed at the (correctly surfaced) `DAILY_CAPACITY_REACHED`
-  stage. Everything up to that point is verified; the tick data itself isn't
-  yet.
+  directly via `service.getEventDefinition(0).typeDefinition()`), confirmed
+  they pass Bloomberg's own field validation (subscribing with them failed on
+  `DAILY_CAPACITY_REACHED` while the quota was exhausted, never on a field
+  error), and - once the quota was reset later the same day - confirmed
+  delivering correct live values that match the earlier `reference_data()`
+  pull exactly (e.g. EUR/USD: `LAST_PRICE` 1.1614, `RT_PX_CHG_NET_1D`
+  -0.0023, `RT_PX_CHG_PCT_1D` -0.1976%, all three identical to the prior
+  `PX_LAST`/`CHG_NET_1D`/`CHG_PCT_1D` reference-data snapshot) (2026-09-06).
+- End-to-end self-healing, unattended - the desktop app was left running
+  through the capacity reset with no restart or manual intervention. Its
+  `RESUBSCRIBE_AFTER_SECONDS` reconnect fired on its own real (not shortened)
+  30-minute cycle once the quota cleared, and the UI flipped from
+  "reconnecting..." to a live green "live" status with real data across all
+  four panels, confirming the fix works under real conditions, not just in a
+  shortened-timer test (2026-09-06).
