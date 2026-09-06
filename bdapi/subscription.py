@@ -45,7 +45,15 @@ class MarketDataSubscriber:
 
     def listen(self, timeout_ms: int = 1000) -> Iterator[dict]:
         """Yields one of:
-          - {"security": ..., "field": ..., "value": ...} - a live update
+          - {"security": ..., "field": ..., "value": ..., "time": ...} - a
+            live update. "time" is when THIS message was received, from
+            blpapi's own `Message.timeReceived()` (a `datetime.datetime`,
+            UTC) - not something computed locally - so a caller can show a
+            per-security "last updated" time. Requires
+            `BLPSession`/`SessionOptions.setRecordSubscriptionDataReceiveTimes(True)`,
+            which `BLPSession` always sets; falls back to `None` if it's
+            ever unavailable (e.g. a session that didn't set that option)
+            rather than raising.
           - {"security": ..., "error": "..."} - THIS security's subscription
             failed (e.g. DAILY_CAPACITY_REACHED, an entitlement issue, an
             invalid ticker). A per-security failure does not stop the
@@ -92,8 +100,17 @@ class MarketDataSubscriber:
             for msg in event:
                 correlation_id = msg.correlationId().value()
                 security = self._correlation_to_security.get(correlation_id, "<unknown>")
+                try:
+                    time_received = msg.timeReceived()
+                except ValueError:
+                    time_received = None
                 for i in range(msg.numElements()):
                     el = msg.getElement(i)
                     if el.isNull():
                         continue
-                    yield {"security": security, "field": str(el.name()), "value": to_python(el.getValue())}
+                    yield {
+                        "security": security,
+                        "field": str(el.name()),
+                        "value": to_python(el.getValue()),
+                        "time": time_received,
+                    }

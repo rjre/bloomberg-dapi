@@ -48,6 +48,7 @@ app = FastAPI(title="Global Macro Morning Brief")
 _state_lock = threading.Lock()
 _raw: dict = {ticker: {} for ticker in ALL_TICKERS}  # ticker -> {"LAST_PRICE": ..., ...}
 _raw_errors: dict = {}  # ticker -> last error message, for tickers currently failing
+_last_update: dict = {}  # ticker -> datetime.datetime (UTC) of its most recent tick
 _history: dict = {}
 
 worker: Optional[BLPWorker] = None
@@ -58,6 +59,7 @@ def _row_from_raw(ticker: str) -> dict:
     last = field_data.get("LAST_PRICE")
     chg_net = field_data.get("RT_PX_CHG_NET_1D")
     chg_pct = field_data.get("RT_PX_CHG_PCT_1D")
+    last_update = _last_update.get(ticker)
     return {
         "ticker": ticker,
         "label": LABELS[ticker],
@@ -67,6 +69,7 @@ def _row_from_raw(ticker: str) -> dict:
         "high": field_data.get("HIGH"),
         "low": field_data.get("LOW"),
         "isRate": CATEGORY_OF[ticker] == RATES_CATEGORY,
+        "lastUpdate": last_update.isoformat() if last_update else None,
     }
 
 
@@ -125,6 +128,8 @@ def _subscription_loop() -> None:
                             else:
                                 _raw.setdefault(tick["security"], {})[tick["field"]] = tick["value"]
                                 _raw_errors.pop(tick["security"], None)
+                                if tick.get("time") is not None:
+                                    _last_update[tick["security"]] = tick["time"]
                     with _state_lock:
                         still_failing = bool(_raw_errors)
                     if still_failing and time.time() - cycle_start > RESUBSCRIBE_AFTER_SECONDS:

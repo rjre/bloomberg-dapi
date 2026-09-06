@@ -73,6 +73,12 @@ instruments, all validated live) with sparklines, plus:
   the live numbers (biggest equity mover, biggest rates move, dollar
   direction, gold/oil, VIX level).
 - **Market Movers** — the biggest movers today within this universe.
+- **Per-row last-update time** — a small timestamp under each ticker, from
+  blpapi's own `Message.timeReceived()` (needs
+  `SessionOptions.setRecordSubscriptionDataReceiveTimes(True)`, which
+  `BLPSession` always sets) - the actual time that specific security's tick
+  arrived, not a single shared "as of" time. Confirmed genuinely independent
+  per security, not just a repeated snapshot time.
 
 The frontend is plain HTML/CSS/JS with hand-rolled inline-SVG sparklines and
 CSS bar charts — deliberately **zero external CDN/JS dependencies**, so it

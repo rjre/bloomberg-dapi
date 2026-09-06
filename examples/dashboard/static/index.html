@@ -118,6 +118,7 @@
   td { padding: 9px 16px; font-size: 13.5px; border-top: 1px solid #1a1f28; transition: background-color 0.6s ease; }
   tr:first-child td { border-top: none; }
   td.label { color: var(--text); font-weight: 500; }
+  td.label .ts { display: block; font-size: 10px; font-weight: 400; color: var(--muted); margin-top: 2px; }
   td.num { text-align: right; white-space: nowrap; }
   td.chg.up { color: var(--up); }
   td.chg.down { color: var(--down); }
@@ -219,6 +220,12 @@ function isUp(row) {
   return row.isRate ? (row.chgNet || 0) >= 0 : (row.chgPct || 0) >= 0;
 }
 
+function fmtLastUpdate(row) {
+  if (!row.lastUpdate) return "";
+  const t = new Date(row.lastUpdate).toLocaleTimeString(undefined, { hour12: false });
+  return `<span class="ts">${t}</span>`;
+}
+
 function renderCategories(categories) {
   const grid = document.getElementById("categoryGrid");
   grid.innerHTML = "";
@@ -237,7 +244,7 @@ function renderCategories(categories) {
       }
       previousValues[key] = row.last;
       return `<tr>
-        <td class="label">${row.label}</td>
+        <td class="label">${row.label}${fmtLastUpdate(row)}</td>
         <td class="num spark">${sparklineSvg(row.ticker)}</td>
         <td class="num mono ${flashClass}" data-ticker="${row.ticker}">${fmtLast(row)}</td>
         <td class="num mono chg ${chgClass}">${fmtChg(row)}</td>

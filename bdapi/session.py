@@ -15,6 +15,10 @@ class BLPSession:
         options = blpapi.SessionOptions()
         options.setServerHost(host)
         options.setServerPort(port)
+        # Without this, msg.timeReceived() raises ValueError("Message has no
+        # timestamp") on every message - needed for MarketDataSubscriber to
+        # report a per-security last-update time (see subscription.py).
+        options.setRecordSubscriptionDataReceiveTimes(True)
         self._session = blpapi.Session(options)
         self._opened_services: set = set()
 
