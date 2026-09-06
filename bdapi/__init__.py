@@ -5,6 +5,7 @@ from .intraday import intraday_bars, intraday_ticks
 from .search import search_securities
 from .subscription import MarketDataSubscriber
 from .worker import BLPWorker
+from .util import BloombergResponseError
 
 __all__ = [
     "BLPSession",
@@ -15,4 +16,5 @@ __all__ = [
     "search_securities",
     "MarketDataSubscriber",
     "BLPWorker",
+    "BloombergResponseError",
 ]

@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Dict, Iterable, Optional
 
 from .session import BLPSession
-from .util import element_to_dict
+from .util import check_response_error, element_to_dict
 
 
 def reference_data(
@@ -45,6 +45,7 @@ def reference_data(
     data: dict = {}
     errors: dict = {}
     for msg in messages:
+        check_response_error(msg)
         if not msg.hasElement("securityData"):
             continue
         security_data_array = msg.getElement("securityData")

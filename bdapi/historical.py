@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Iterable, Optional
 
 from .session import BLPSession
-from .util import element_to_dict
+from .util import check_response_error, element_to_dict
 
 
 def historical_data(
@@ -44,6 +44,7 @@ def historical_data(
 
     result: dict = {}
     for msg in messages:
+        check_response_error(msg)
         if not msg.hasElement("securityData"):
             continue
         sec_data = msg.getElement("securityData")

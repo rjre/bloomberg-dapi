@@ -265,8 +265,7 @@ function renderMovers(movers) {
 
 async function refresh() {
   try {
-    const res = await fetch("/api/snapshot");
-    const data = await res.json();
+    const data = await window.pywebview.api.get_snapshot();
     document.getElementById("statusDot").className = "dot" + (data.connected ? "" : " offline");
     document.getElementById("statusText").textContent = data.connected ? "live" : "reconnecting…";
     if (data.asOf) {
@@ -283,8 +282,7 @@ async function refresh() {
 
 async function loadHistory() {
   try {
-    const res = await fetch("/api/history");
-    history = await res.json();
+    history = await window.pywebview.api.get_history();
   } catch (e) { /* sparklines just won't render */ }
 }
 
@@ -292,13 +290,18 @@ function tickClock() {
   document.getElementById("clock").textContent = new Date().toLocaleTimeString();
 }
 
-(async function init() {
+function whenApiReady(cb) {
+  if (window.pywebview && window.pywebview.api) { cb(); return; }
+  window.addEventListener('pywebviewready', cb, { once: true });
+}
+
+whenApiReady(async function init() {
   await loadHistory();
   await refresh();
   setInterval(refresh, 3000);
   setInterval(tickClock, 1000);
   tickClock();
-})();
+});
 </script>
 </body>
 </html>

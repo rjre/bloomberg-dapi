@@ -7,7 +7,7 @@ import datetime
 from typing import Iterable, List, Optional
 
 from .session import BLPSession
-from .util import element_to_dict
+from .util import check_response_error, element_to_dict
 
 
 def intraday_bars(
@@ -36,6 +36,7 @@ def intraday_bars(
 
     bars: List[dict] = []
     for msg in messages:
+        check_response_error(msg)
         if not msg.hasElement("barData"):
             continue
         bar_tick_data = msg.getElement("barData").getElement("barTickData")
@@ -70,6 +71,7 @@ def intraday_ticks(
 
     ticks: List[dict] = []
     for msg in messages:
+        check_response_error(msg)
         if not msg.hasElement("tickData"):
             continue
         tick_data = msg.getElement("tickData").getElement("tickData")
