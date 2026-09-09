@@ -30,9 +30,10 @@ from fastapi.staticfiles import StaticFiles
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `import bdapi`
 
-from bdapi import BLPSession, BLPWorker, MarketDataSubscriber, historical_data  # noqa: E402
+from bdapi import BLPSession, BLPWorker, MarketDataSubscriber, historical_data, reference_data  # noqa: E402
 
 from universe import ALL_TICKERS, CATEGORY_OF, FX_CATEGORY, LABELS, RATES_CATEGORY, UNIVERSE, build_pulse  # noqa: E402
+import fxoption  # noqa: E402
 
 # Subscribed once at startup and left open - NOT re-requested on a timer.
 SUBSCRIPTION_FIELDS = ["LAST_PRICE", "RT_PX_CHG_NET_1D", "RT_PX_CHG_PCT_1D", "HIGH", "LOW", "BID", "ASK"]
@@ -171,6 +172,218 @@ def _load_history() -> None:
         _history.update(history)
 
 
+# --- FX option: realtime Garman-Kohlhagen valuation off Bloomberg's own OTC
+# FX vol surface (ATM/RR/BF) - see fxoption.py's module docstring for the
+# full pricing approach and its deliberate approximations.
+#
+# Unlike the main grid above, this does poll reference_data() on a timer
+# rather than subscribe - deliberately: the vol/RR/BF/forward tags a smile
+# needs aren't part of the always-on ALL_TICKERS subscription (there are
+# 14 pairs x 13 tenors x 6 tags of them - far too many to subscribe to
+# permanently for a tool only one user's one selected instrument ever reads
+# at a time), and unlike raw spot they don't need sub-second updates - vol
+# surfaces move over minutes, not ticks. This is bounded to whichever single
+# instrument is currently selected (a handful of tags), refreshed only while
+# the FX Option tab is open, which is a different rate-limit profile than
+# the "don't poll reference_data in a loop" warning in README.md was written
+# about (an unbounded, always-on, whole-universe poll).
+FXOPT_FAST_REFRESH_S = 4    # bracket-tenor smile + spot - the actual pricing inputs
+FXOPT_TERM_REFRESH_S = 25   # full ATM term structure - context only, moves slowly
+
+_fxopt_lock = threading.Lock()
+_fxopt_instrument = {"base": "EUR", "quote": "USD", "strike": None, "expiry": None,
+                     "is_call": False, "premium_adjusted": False}
+_fxopt_tag_values: dict = {}    # tag -> float (PX_LAST)
+_fxopt_term_values: dict = {}   # ATM tag -> float (PX_LAST)
+_fxopt_fwd_scale: dict = {}     # pair_key -> int, fetched once per pair, cached forever
+_fxopt_as_of: Optional[datetime.datetime] = None
+_fxopt_tag_error: Optional[str] = None
+_fxopt_history_cache: dict = {}  # (base, quote, tenor) -> {"dates", "vols", "fetched_at"}
+FXOPT_HISTORY_TTL_S = 6 * 3600
+FXOPT_HISTORY_LOOKBACK_DAYS = 30
+
+
+def _fxopt_ensure_fwd_scale(base: str, quote: str) -> None:
+    """FWD_SCALE (decimal places a pair's forward-point ticker is quoted in)
+    is static - fetched once per pair, ever, then cached for the life of the
+    process."""
+    key = fxoption.pair_key(base, quote)
+    if key in _fxopt_fwd_scale:
+        return
+    try:
+        tag = fxoption.fwd_tag(base, quote, "1M")
+        result = worker.submit(reference_data, [tag], ["FWD_SCALE"]).result(timeout=10)
+        scale = result["data"].get(tag, {}).get("FWD_SCALE")
+        if scale is not None:
+            _fxopt_fwd_scale[key] = int(scale)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[fxoption] FWD_SCALE fetch failed for {key}: {exc}", file=sys.stderr)
+
+
+def _fxopt_do_fast_refresh() -> None:
+    global _fxopt_as_of, _fxopt_tag_error
+    with _fxopt_lock:
+        instrument = dict(_fxopt_instrument)
+    if instrument["strike"] is None:
+        return
+    base, quote = instrument["base"], instrument["quote"]
+    try:
+        today = datetime.datetime.now(datetime.timezone.utc).date()
+        expiry_date = datetime.date.fromisoformat(instrument["expiry"])
+        bracket = fxoption.bracket_tenors(expiry_date, today)
+        securities = [fxoption.spot_tag(base, quote)]
+        for tenor, _date in bracket:
+            securities += fxoption.tags_for_tenor(base, quote, tenor)
+        securities = list(dict.fromkeys(securities))
+        result = worker.submit(reference_data, securities, ["PX_LAST"]).result(timeout=10)
+        values = {sec: d.get("PX_LAST") for sec, d in result["data"].items()}
+        with _fxopt_lock:
+            _fxopt_tag_values.update(values)
+            _fxopt_as_of = datetime.datetime.now(datetime.timezone.utc)
+            _fxopt_tag_error = f"{len(result['errors'])} tag(s) failed" if result["errors"] else None
+    except Exception as exc:  # noqa: BLE001
+        with _fxopt_lock:
+            _fxopt_tag_error = str(exc)
+        print(f"[fxoption] fast refresh failed: {exc}", file=sys.stderr)
+
+
+def _fxopt_do_term_refresh() -> None:
+    with _fxopt_lock:
+        instrument = dict(_fxopt_instrument)
+    if instrument["strike"] is None:
+        return
+    base, quote = instrument["base"], instrument["quote"]
+    try:
+        securities = fxoption.atm_tags(base, quote)
+        result = worker.submit(reference_data, securities, ["PX_LAST"]).result(timeout=15)
+        values = {sec: d.get("PX_LAST") for sec, d in result["data"].items()}
+        with _fxopt_lock:
+            _fxopt_term_values.clear()
+            _fxopt_term_values.update(values)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[fxoption] term-structure refresh failed: {exc}", file=sys.stderr)
+
+
+def _fxopt_fast_refresh_loop() -> None:
+    while True:
+        time.sleep(FXOPT_FAST_REFRESH_S)
+        _fxopt_do_fast_refresh()
+
+
+def _fxopt_term_refresh_loop() -> None:
+    while True:
+        _fxopt_do_term_refresh()
+        time.sleep(FXOPT_TERM_REFRESH_S)
+
+
+@app.post("/api/fxoption/instrument")
+def set_fxoption_instrument(payload: dict) -> JSONResponse:
+    """Sets the one instrument this tab is currently pricing - "providing
+    the instrument", standing in for an eventual Aladdin order pull (see the
+    FX Option tab's own to-do note). Triggers an immediate refresh rather
+    than waiting up to FXOPT_FAST_REFRESH_S for the first snapshot."""
+    try:
+        base, quote = fxoption.parse_pair(payload.get("pair", ""))
+        strike = float(payload["strike"])
+        if strike <= 0:
+            raise ValueError("strike must be positive")
+        expiry_date = datetime.datetime.strptime(payload["expiry"], "%Y-%m-%d").date()
+        option_type = (payload.get("type") or "put").strip().lower()
+        if option_type not in ("put", "call"):
+            raise ValueError("type must be 'put' or 'call'")
+        premium_adjusted = bool(payload.get("premium_adjusted", False))
+    except (KeyError, ValueError, TypeError) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    _fxopt_ensure_fwd_scale(base, quote)
+    with _fxopt_lock:
+        pair_changed = (base, quote) != (_fxopt_instrument["base"], _fxopt_instrument["quote"])
+        _fxopt_instrument.update(base=base, quote=quote, strike=strike, expiry=expiry_date.isoformat(),
+                                  is_call=(option_type == "call"), premium_adjusted=premium_adjusted)
+        if pair_changed:
+            _fxopt_tag_values.clear()
+    _fxopt_do_fast_refresh()
+    if pair_changed:
+        threading.Thread(target=_fxopt_do_term_refresh, daemon=True).start()
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/fxoption/snapshot")
+def get_fxoption_snapshot() -> JSONResponse:
+    with _fxopt_lock:
+        instrument = dict(_fxopt_instrument)
+        values = dict(_fxopt_tag_values)
+        term_values = dict(_fxopt_term_values)
+        as_of = _fxopt_as_of
+        tag_error = _fxopt_tag_error
+
+    if instrument["strike"] is None:
+        return JSONResponse({"error": "no instrument selected yet"})
+    base, quote = instrument["base"], instrument["quote"]
+    spot = values.get(fxoption.spot_tag(base, quote))
+    if spot is None:
+        return JSONResponse({"error": f"waiting for the first live {fxoption.pair_label(base, quote)} spot tick"})
+    fwd_scale = _fxopt_fwd_scale.get(fxoption.pair_key(base, quote))
+    if fwd_scale is None:
+        return JSONResponse({"error": "waiting for forward-point scale (FWD_SCALE) lookup"})
+
+    today = datetime.datetime.now(datetime.timezone.utc).date()
+    expiry_date = datetime.date.fromisoformat(instrument["expiry"])
+    bracket = fxoption.bracket_tenors(expiry_date, today)
+    bracket_data = []
+    for tenor, date_ in bracket:
+        smile = fxoption.build_tenor_smile(base, quote, tenor, values, spot, fwd_scale, today,
+                                            premium_adjusted=instrument["premium_adjusted"])
+        bracket_data.append((tenor, date_, smile))
+    try:
+        result = fxoption.value_option(base, quote, bracket_data, spot, instrument["strike"],
+                                        expiry_date, today, is_call=instrument["is_call"])
+    except ValueError as exc:
+        # Still include spot/quote even on a pricing failure (e.g. the
+        # placeholder strike a fresh pair starts with, before the frontend's
+        # own autofill-to-live-spot correction lands) - the frontend's
+        # autofill depends on seeing a real spot here, not just an error
+        # string, or a bad first guess can never self-correct.
+        return JSONResponse({"error": str(exc), "spot": spot, "quote": quote, "base": base})
+
+    result["quote"] = quote
+    result["premium_adjusted"] = instrument["premium_adjusted"]
+    result["as_of"] = as_of.isoformat() if as_of else None
+    result["tag_error"] = tag_error
+    result["term_structure"] = fxoption.build_term_structure(base, quote, term_values, today)
+    return JSONResponse(result)
+
+
+@app.get("/api/fxoption/history")
+def get_fxoption_history(pair: str = "EURUSD", tenor: str = "1M") -> JSONResponse:
+    try:
+        base, quote = fxoption.parse_pair(pair)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    if tenor not in fxoption.TENORS:
+        return JSONResponse({"error": f"unknown tenor {tenor!r}"}, status_code=400)
+
+    key = (base, quote, tenor)
+    cached = _fxopt_history_cache.get(key)
+    if cached and (time.time() - cached["fetched_at"]) < FXOPT_HISTORY_TTL_S:
+        return JSONResponse({"pair": fxoption.pair_label(base, quote), "tenor": tenor,
+                              "dates": cached["dates"], "vols": cached["vols"]})
+
+    tag = fxoption.atm_tag(base, quote, tenor)
+    end = datetime.datetime.now(datetime.timezone.utc)
+    start = end - datetime.timedelta(days=FXOPT_HISTORY_LOOKBACK_DAYS)
+    try:
+        result = worker.submit(historical_data, [tag], ["PX_LAST"],
+                                start.strftime("%Y%m%d"), end.strftime("%Y%m%d")).result(timeout=15)
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"error": str(exc)}, status_code=500)
+    rows = result.get(tag, [])
+    dates = [r["date"].isoformat() for r in rows if "PX_LAST" in r]
+    vols = [r["PX_LAST"] for r in rows if "PX_LAST" in r]
+    _fxopt_history_cache[key] = {"dates": dates, "vols": vols, "fetched_at": time.time()}
+    return JSONResponse({"pair": fxoption.pair_label(base, quote), "tenor": tenor, "dates": dates, "vols": vols})
+
+
 @app.on_event("startup")
 def startup() -> None:
     global worker
@@ -178,6 +391,8 @@ def startup() -> None:
     worker.start()
     _load_history()
     threading.Thread(target=_subscription_loop, daemon=True).start()
+    threading.Thread(target=_fxopt_fast_refresh_loop, daemon=True).start()
+    threading.Thread(target=_fxopt_term_refresh_loop, daemon=True).start()
 
 
 @app.get("/api/snapshot")
