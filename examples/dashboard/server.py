@@ -195,7 +195,7 @@ _fxopt_lock = threading.Lock()
 _fxopt_instrument = {"base": "EUR", "quote": "USD", "strike": None, "expiry": None,
                      "is_call": False, "premium_adjusted": False}
 _fxopt_tag_values: dict = {}    # tag -> float (PX_LAST)
-_fxopt_term_values: dict = {}   # ATM tag -> float (PX_LAST)
+_fxopt_term_values: dict = {}   # tag -> float (PX_LAST) - ATM *and* full smile tags, every tenor
 _fxopt_fwd_scale: dict = {}     # pair_key -> int, fetched once per pair, cached forever
 _fxopt_as_of: Optional[datetime.datetime] = None
 _fxopt_tag_error: Optional[str] = None
@@ -249,13 +249,23 @@ def _fxopt_do_fast_refresh() -> None:
 
 
 def _fxopt_do_term_refresh() -> None:
+    """Full smile tags (not just ATM) for *every* quoted tenor - powers both
+    the ATM term-structure chart and the vol-surface panel (build_tenor_smile
+    per tenor, see get_fxoption_snapshot). 13 tenors x 6 tags = 78 tickers in
+    one batched call, on FXOPT_TERM_REFRESH_S - a vol surface moves over
+    minutes, not ticks, and this is scoped to one open tab's one selected
+    pair, so a 78-ticker pull every 25s stays well inside a sane rate-limit
+    budget (see the section docstring above)."""
     with _fxopt_lock:
         instrument = dict(_fxopt_instrument)
     if instrument["strike"] is None:
         return
     base, quote = instrument["base"], instrument["quote"]
     try:
-        securities = fxoption.atm_tags(base, quote)
+        securities: list = []
+        for tenor in fxoption.TENORS:
+            securities += fxoption.tags_for_tenor(base, quote, tenor)
+        securities = list(dict.fromkeys(securities))
         result = worker.submit(reference_data, securities, ["PX_LAST"]).result(timeout=15)
         values = {sec: d.get("PX_LAST") for sec, d in result["data"].items()}
         with _fxopt_lock:
@@ -352,6 +362,25 @@ def get_fxoption_snapshot() -> JSONResponse:
     result["as_of"] = as_of.isoformat() if as_of else None
     result["tag_error"] = tag_error
     result["term_structure"] = fxoption.build_term_structure(base, quote, term_values, today)
+
+    # Full vol surface - every tenor with a smile built (from _fxopt_term_values,
+    # the slower 78-tag refresh above), not just the 1-2 bracket tenors this
+    # option is actually priced off. Purely a visualization of what's live
+    # right now on the whole curve - build_tenor_smile is the same call the
+    # bracket pricing above uses, just run once per tenor instead of twice.
+    surface = []
+    for tenor in fxoption.TENORS:
+        tenor_date_ = fxoption.tenor_date(tenor, today)
+        smile = fxoption.build_tenor_smile(base, quote, tenor, term_values, spot, fwd_scale, today,
+                                            premium_adjusted=instrument["premium_adjusted"])
+        if smile is None:
+            continue
+        surface.append({
+            "tenor": tenor, "years": smile["years"],
+            "points": [{"strike": p["strike"], "vol": p["vol"], "label": p["label"]} for p in smile["points"]],
+            "curve": fxoption.strike_curve(smile["points"], n=25),
+        })
+    result["surface"] = surface
     return JSONResponse(result)
 
 
