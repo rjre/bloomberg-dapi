@@ -235,6 +235,17 @@ def _fxopt_do_fast_refresh() -> None:
         securities = [fxoption.spot_tag(base, quote)]
         for tenor, _date in bracket:
             securities += fxoption.tags_for_tenor(base, quote, tenor)
+        # The 9 USD-legged G10 spots, always - lets get_fxoption_snapshot
+        # triangulate a GBP premium for whatever pair is actually selected
+        # (fxoption.gbp_per_unit) without a separate refresh cycle. Plus the
+        # quote currency's overnight rate, if one's confirmed live for it
+        # (fxoption.OVERNIGHT_RATE_TAG) - the discount-rate input pricing
+        # would otherwise assume r=0 for (see fxoption.value_option).
+        for usd_base, usd_quote in fxoption.USD_LEGGED_PAIRS:
+            securities.append(fxoption.spot_tag(usd_base, usd_quote))
+        rate_tag = fxoption.overnight_rate_tag(quote)
+        if rate_tag:
+            securities.append(rate_tag)
         securities = list(dict.fromkeys(securities))
         result = worker.submit(reference_data, securities, ["PX_LAST"]).result(timeout=10)
         values = {sec: d.get("PX_LAST") for sec, d in result["data"].items()}
@@ -346,9 +357,12 @@ def get_fxoption_snapshot() -> JSONResponse:
         smile = fxoption.build_tenor_smile(base, quote, tenor, values, spot, fwd_scale, today,
                                             premium_adjusted=instrument["premium_adjusted"])
         bracket_data.append((tenor, date_, smile))
+    rate_tag = fxoption.overnight_rate_tag(quote)
+    quote_rate_pct = values.get(rate_tag) if rate_tag else None
     try:
         result = fxoption.value_option(base, quote, bracket_data, spot, instrument["strike"],
-                                        expiry_date, today, is_call=instrument["is_call"])
+                                        expiry_date, today, is_call=instrument["is_call"],
+                                        quote_rate_pct=quote_rate_pct)
     except ValueError as exc:
         # Still include spot/quote even on a pricing failure (e.g. the
         # placeholder strike a fresh pair starts with, before the frontend's
@@ -362,6 +376,36 @@ def get_fxoption_snapshot() -> JSONResponse:
     result["as_of"] = as_of.isoformat() if as_of else None
     result["tag_error"] = tag_error
     result["term_structure"] = fxoption.build_term_structure(base, quote, term_values, today)
+    result["rate_source"] = rate_tag
+
+    # GBP triangulation, for whichever currency this option's premium is
+    # actually denominated in (call_ccy - see value_option) - via the 9
+    # USD-legged spots always fetched above, same triangulation a
+    # GBP-denominated desk already does by eye.
+    result["gbp_per_call_ccy_unit"] = fxoption.gbp_per_unit(values, result["call_ccy"])
+
+    # Bloomberg source tags for each live-pulled field, for the page's own
+    # "source" labels - not shown for computed/derived outputs (premium,
+    # greeks), which get a "(computed)" label client-side instead.
+    call_ccy = result["call_ccy"]
+    gbp_source = None
+    if call_ccy == "GBP":
+        gbp_source = None  # GBP IS the call currency - no triangulation needed
+    elif call_ccy == "USD":
+        gbp_source = "GBPUSD Curncy"
+    else:
+        usd_leg = next((fxoption.spot_tag(b, q) for b, q in fxoption.USD_LEGGED_PAIRS if call_ccy in (b, q)), None)
+        gbp_source = f"GBPUSD Curncy + {usd_leg}" if usd_leg else None
+    result["sources"] = {
+        "spot": fxoption.spot_tag(base, quote),
+        "forward": [fxoption.fwd_tag(base, quote, tenor) for tenor, _date in bracket],
+        "vol": [tag for tenor, _date in bracket for tag in
+                (fxoption.atm_tag(base, quote, tenor), fxoption.rr_tag(base, quote, tenor, "25"),
+                 fxoption.bf_tag(base, quote, tenor, "25"), fxoption.rr_tag(base, quote, tenor, "10"),
+                 fxoption.bf_tag(base, quote, tenor, "10"))],
+        "rate": rate_tag,
+        "gbp": gbp_source,
+    }
 
     # Full vol surface - every tenor with a smile built (from _fxopt_term_values,
     # the slower 78-tag refresh above), not just the 1-2 bracket tenors this

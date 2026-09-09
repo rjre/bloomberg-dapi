@@ -5,26 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Global Macro — Morning Brief</title>
 <style>
+  /* Ruffer house style (ruffer.co.uk): white ground, Georgia serif for
+     headings in their house dark green, a clean system-sans for body/UI
+     text (Avenir, their actual typeface, is a paid commercial font with no
+     web-safe or Google Fonts equivalent - not loaded, since this app also
+     needs to run with no internet access on a locked-down desk PC; a
+     system sans-serif stack is the closest a build with zero external font
+     dependencies can get). No dark mode - every var below is a light-theme
+     value used directly, not swapped per color-scheme. */
   :root {
-    --bg: #0a0c10;
-    --panel: #12151b;
-    --panel-border: #232833;
-    --text: #e8ecf1;
-    --muted: #7c8494;
-    --accent: #ffb020;
-    --up: #22c55e;
-    --down: #ef4444;
-    --flash-up: rgba(34, 197, 94, 0.28);
-    --flash-down: rgba(239, 68, 68, 0.28);
+    --bg: #ffffff;
+    --panel: #f6f8f5;
+    --panel-border: #dbe3d8;
+    --text: #383838;
+    --muted: #6b7268;
+    --accent: #086132;
+    --accent-bright: #4e9a33;
+    --up: #2f8f46;
+    --down: #b3261e;
+    --flash-up: rgba(47, 143, 70, 0.16);
+    --flash-down: rgba(179, 38, 30, 0.14);
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     min-height: 100vh;
   }
+  h1, h2, h3, .serif { font-family: Georgia, "Times New Roman", serif; }
   .mono { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace; }
 
   header {
@@ -82,7 +92,7 @@
   main { padding: 24px 28px 60px; max-width: 1500px; margin: 0 auto; }
 
   .pulse-card {
-    background: linear-gradient(135deg, #161a22, #12151b);
+    background: linear-gradient(135deg, #f6f8f5, #eef2ec);
     border: 1px solid var(--panel-border);
     border-left: 3px solid var(--accent);
     border-radius: 10px;
@@ -139,6 +149,80 @@
     text-align: center; color: var(--muted); font-size: 12px;
     padding: 20px; border-top: 1px solid var(--panel-border); margin-top: 30px;
   }
+
+  /* --- tabs -------------------------------------------------------------- */
+  .tabbar { display: flex; gap: 4px; padding: 0 28px; border-bottom: 1px solid var(--panel-border);
+            background: var(--bg); position: sticky; top: 65px; z-index: 9; overflow-x: auto; }
+  .tabbar button { background: none; border: none; color: var(--muted); font: inherit; font-size: 13px;
+                   font-weight: 600; letter-spacing: 0.3px; padding: 12px 16px; cursor: pointer;
+                   border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tabbar button:hover { color: var(--text); }
+  .tabbar button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tabbar button.stub { color: #4b5261; }
+  .tab-panel main { padding: 24px 28px 60px; max-width: 1500px; margin: 0 auto; }
+
+  /* --- FX option tab ------------------------------------------------------ */
+  .opt-panel { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px;
+               padding: 18px 20px; margin-bottom: 18px; }
+  .opt-panel h2 { margin: 0 0 12px; font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase;
+                  color: var(--muted); font-weight: 700; }
+  .opt-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end; }
+  .opt-field label { display: block; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
+                      color: var(--muted); margin-bottom: 5px; }
+  .opt-field select, .opt-field input[type=number], .opt-field input[type=date], .opt-field input[type=text] {
+    background: var(--bg); border: 1px solid var(--panel-border); color: var(--text);
+    border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 13.5px; width: 100%;
+  }
+  .opt-field.check label { display: flex; align-items: center; gap: 6px; text-transform: none;
+                            font-weight: 400; letter-spacing: normal; color: var(--text); }
+  .opt-field.check input { width: auto; }
+  .opt-hint { font-size: 11.5px; color: var(--muted); margin: 8px 0 0; line-height: 1.5; }
+  .big-price { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 2.3rem;
+               color: var(--up); font-variant-numeric: tabular-nums; line-height: 1; }
+  .opt-error { background: rgba(179,38,30,0.08); border: 1px solid var(--down); color: var(--down);
+               border-radius: 6px; padding: 10px 14px; font-size: 13px; margin-top: 12px; }
+  .opt-warn { background: rgba(255,176,32,0.1); border-left: 3px solid var(--accent); border-radius: 6px;
+              padding: 10px 14px; font-size: 12.5px; color: var(--text); margin-bottom: 18px; }
+  .opt-warn strong { color: var(--accent); }
+  .opt-warn ul { margin: 6px 0 0; padding-left: 18px; }
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; }
+  .stat .k { font-size: 10.5px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); }
+  .stat .v { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 15px; margin-top: 3px; }
+  .stat .age { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .opt-status { font-size: 11.5px; padding: 3px 9px; border-radius: 20px; background: #1a1f28; color: var(--muted); }
+  .opt-status.live { color: var(--up); background: rgba(47,143,70,0.12); }
+  #fxopt-smile-chart, #fxopt-term-chart, #fxopt-drilldown-chart { width: 100%; height: auto; display: block; }
+  .axis-label { font-size: 10px; fill: var(--muted); }
+  .vol-label { font-size: 10px; font-weight: 700; }
+  .opt-legend { display: flex; gap: 1.25rem; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-top: 10px; }
+  .opt-legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .opt-formula { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12.5px;
+                 background: var(--bg); border: 1px solid var(--panel-border); border-radius: 6px;
+                 padding: 10px 13px; margin: 8px 0; overflow-x: auto; white-space: pre; }
+  .opt-scroll { overflow-x: auto; }
+  .opt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .opt-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px;
+                  color: var(--muted); padding: 6px 10px; border-bottom: 1px solid var(--panel-border); }
+  .opt-table td { padding: 7px 10px; border-top: 1px solid #1a1f28; }
+  .opt-table td.num, .opt-table th.num { text-align: right; }
+  .term-point { cursor: pointer; }
+  .stub-panel { background: var(--panel); border: 1px dashed var(--panel-border); border-radius: 10px;
+                padding: 40px; text-align: center; color: var(--muted); }
+
+  /* --- FX option "wow" polish -------------------------------------------- */
+  @keyframes priceFlashUp   { 0% { background: rgba(47,143,70,0.22); } 100% { background: transparent; } }
+  @keyframes priceFlashDown { 0% { background: rgba(179,38,30,0.18); } 100% { background: transparent; } }
+  .price-flash-up   { animation: priceFlashUp 1s ease-out; border-radius: 8px; }
+  .price-flash-down { animation: priceFlashDown 1s ease-out; border-radius: 8px; }
+  @keyframes livePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(47,143,70,0.45); } 50% { box-shadow: 0 0 0 5px rgba(47,143,70,0); } }
+  .opt-status.live { animation: livePulse 2s ease-out infinite; }
+  .hero-price-wrap { position: relative; padding: 4px 10px; margin: -4px -10px; }
+  .surface-panel svg { width: 100%; height: auto; display: block; }
+  .surface-note { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  /* --- Bloomberg source labels -------------------------------------------- */
+  .src-tag { display: block; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+             font-size: 9.5px; color: var(--muted); margin-top: 2px; letter-spacing: 0; font-weight: 400; }
+  .src-tag.computed { font-style: italic; }
 </style>
 </head>
 <body>
@@ -153,6 +237,14 @@
   </div>
 </header>
 
+<div class="tabbar">
+  <button type="button" class="tab-btn active" data-tab="dashboard">Dashboard</button>
+  <button type="button" class="tab-btn" data-tab="fxoption">FX Option</button>
+  <button type="button" class="tab-btn stub" data-tab="spx">SPX Vol / Option</button>
+
+</div>
+
+<div id="tab-dashboard" class="tab-panel">
 <main>
   <div class="pulse-card">
     <div class="label">Market Pulse</div>
@@ -167,10 +259,363 @@
     <div id="movers"></div>
   </div>
 </main>
+</div>
+
+<div id="tab-fxoption" class="tab-panel" hidden>
+<main>
+  <div class="opt-warn">
+    <strong>To do</strong>
+    <ul>
+      <li>Hook up to Aladdin orders: pull FXO orders and let the user select one for valuation instead of typing it in below.</li>
+      <li>Read the order's notional/direction so a sale/unwind can be flagged and sized automatically.</li>
+      <li>Terminal connect: click the spot (or any live field) to load that security in the actual Bloomberg Terminal.</li>
+    </ul>
+  </div>
+
+  <div class="opt-panel">
+    <div class="opt-row" style="justify-content:space-between;">
+      <div style="display:flex; gap:24px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="opt-field" style="width:110px;">
+          <label for="fxopt-pair">Pair</label>
+          <select id="fxopt-pair"></select>
+        </div>
+        <div>
+          <div class="opt-hint" style="margin:0 0 4px;">Premium, % <span id="fxopt-call-ccy">–</span> notional</div>
+          <div class="hero-price-wrap" id="fxopt-premium-wrap"><div class="big-price" id="fxopt-premium-pct">–</div></div>
+          <div class="src-tag computed">[computed — Black-76]</div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <span class="opt-status" id="fxopt-status">connecting…</span>
+        <div class="opt-hint" id="fxopt-asof">–</div>
+      </div>
+    </div>
+    <div id="fxopt-error"></div>
+    <form class="opt-row" id="fxopt-form" style="margin-top:16px;">
+      <div class="opt-field" style="width:150px;">
+        <label for="fxopt-type">Call leg</label>
+        <select id="fxopt-type">
+          <option value="put">Put</option>
+          <option value="call">Call</option>
+        </select>
+      </div>
+      <div class="opt-field" style="width:140px;">
+        <label for="fxopt-strike">Strike (<span id="fxopt-strike-unit">–</span>)</label>
+        <input id="fxopt-strike" type="number" step="0.0001" value="1">
+      </div>
+      <div class="opt-field" style="width:150px;">
+        <label for="fxopt-expiry">Expiry</label>
+        <input id="fxopt-expiry" type="date">
+      </div>
+      <div class="opt-field check" style="width:170px;">
+        <label title="Two market conventions exist for turning a quoted '25-delta' smile point into an actual strike. Plain (unchecked) uses the textbook forward delta. Checked uses premium-adjusted delta instead - the convention several pairs (JPY crosses among them) actually quote in practice, which nets the premium's own currency exposure out of the hedge ratio, giving a slightly different strike for the same quoted delta. Nothing here confirms which convention any given pair actually uses, so it's a toggle, not an assumption. Applies immediately.">
+          <input id="fxopt-premium-adjusted" type="checkbox"> Premium-adj. delta</label>
+      </div>
+      <div class="opt-field" style="width:auto;"><button type="submit">Revalue</button></div>
+    </form>
+    <div class="opt-row" style="margin-top:14px;">
+      <div class="opt-field" style="width:150px;">
+        <label for="fxopt-spot-override">Spot override (<span id="fxopt-spot-unit">–</span>)</label>
+        <input id="fxopt-spot-override" type="number" step="0.0001" placeholder="live">
+      </div>
+      <div class="opt-field" style="width:150px;">
+        <label for="fxopt-vol-override">Vol override (%)</label>
+        <input id="fxopt-vol-override" type="number" step="0.01" placeholder="live">
+      </div>
+      <p class="opt-hint" style="flex:1; min-width:220px; margin:0 0 7px;">Leave either blank to use the live value.
+        Recomputed instantly in the browser off the same Black-76 formula — no new market data fetched.
+        The forward isn't re-derived from an overridden spot (it's its own live-quoted tag), so only
+        delta/gamma and the spot-side premium % move.</p>
+    </div>
+  </div>
+
+  <div class="grid" style="align-items:start;">
+    <div class="opt-panel">
+      <div class="stat-row">
+        <div class="stat"><div class="k">Spot</div><div class="v" id="fxopt-spot">–</div><div class="src-tag" id="fxopt-spot-src"></div><div class="age" id="fxopt-spot-age"></div></div>
+        <div class="stat"><div class="k">Forward (interpolated)</div><div class="v" id="fxopt-forward">–</div><div class="src-tag computed" id="fxopt-forward-src"></div></div>
+        <div class="stat"><div class="k">Vol used</div><div class="v" id="fxopt-vol">–</div><div class="src-tag computed" id="fxopt-vol-src"></div></div>
+        <div class="stat"><div class="k">Time to expiry</div><div class="v" id="fxopt-days">–</div><div class="src-tag computed">[calendar days to expiry]</div></div>
+      </div>
+      <div class="opt-row" style="margin-top:16px;">
+        <div class="opt-field" style="width:170px;">
+          <label for="fxopt-notional">Notional (<span id="fxopt-notional-unit">–</span>)</label>
+          <input id="fxopt-notional" type="text" inputmode="decimal" value="1,000,000">
+        </div>
+      </div>
+      <div class="stat-row" style="margin-top:12px;">
+        <div class="stat"><div class="k">Premium (call ccy)</div><div class="v" id="fxopt-value-callccy">–</div><div class="src-tag computed">[Black-76]</div></div>
+        <div class="stat"><div class="k">Premium (GBP)</div><div class="v" id="fxopt-value-gbp">–</div><div class="src-tag computed" id="fxopt-gbp-src"></div></div>
+        <div class="stat"><div class="k">Delta amount</div><div class="v" id="fxopt-delta-amount">–</div><div class="src-tag computed">[delta × notional]</div></div>
+      </div>
+    </div>
+
+    <div class="opt-panel">
+      <h2>Greeks <span class="src-tag computed" style="display:inline; margin-left:6px;">[computed — Black-76, discounted]</span></h2>
+      <p class="opt-hint">Delta is the spot hedge ratio (dF/dS ≈ F/S chain rule). Smile Δ is the raw,
+        deliberately undiscounted Black-76 forward delta — a market-convention label ("a 25-delta put"),
+        not a P&amp;L figure. Vega per 1 vol point, theta per calendar day. None are Bloomberg fields — see
+        "How this is priced" below.</p>
+      <div class="stat-row">
+        <div class="stat"><div class="k">Delta (spot)</div><div class="v" id="fxopt-delta">–</div></div>
+        <div class="stat"><div class="k">Smile Δ (fwd)</div><div class="v" id="fxopt-smile-delta">–</div></div>
+        <div class="stat"><div class="k">Gamma</div><div class="v" id="fxopt-gamma">–</div></div>
+        <div class="stat"><div class="k">Vega / vol pt</div><div class="v" id="fxopt-vega">–</div></div>
+        <div class="stat"><div class="k">Theta / day</div><div class="v" id="fxopt-theta">–</div></div>
+        <div class="stat"><div class="k">Discount factor</div><div class="v" id="fxopt-df">–</div><div class="src-tag" id="fxopt-rate-src"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="opt-panel surface-panel">
+    <h2>Live vol surface — every quoted tenor</h2>
+    <p class="opt-hint">Every tenor Bloomberg quotes for this pair, ON through 2Y, ridged front-to-back by
+      time to expiry — not just the 1-2 tenors this option is actually bracketed off (highlighted, thicker).
+      Each ribbon is that tenor's own smile (put wing → ATM → call wing), refreshed every 25s (a vol surface
+      moves over minutes, not ticks). The pin marks this option's own strike on its bracket tenor(s).</p>
+    <svg id="fxopt-surface-chart" viewBox="0 0 760 340"></svg>
+    <div class="surface-note" id="fxopt-surface-note">Loading full curve — this refreshes on a slower cycle than the price above.</div>
+  </div>
+
+  <div class="opt-panel">
+    <h2>Vol smile — nearest bracket tenor</h2>
+    <p class="opt-hint">Fitted (natural cubic spline) through Bloomberg's own quoted smile points for
+      that tenor (ATM ± 25D/10D risk-reversal &amp; butterfly), not an assumed delta-to-strike mapping.
+      The dashed line marks the strike being priced.</p>
+    <svg id="fxopt-smile-chart" viewBox="0 0 760 280"></svg>
+    <div class="opt-legend">
+      <span><span class="dot" style="background:#fff;border:2px solid var(--up)"></span>Bloomberg-quoted (P10/P25/ATM/C25/C10)</span>
+      <span><span class="dot" style="background:var(--accent)"></span>spline fit</span>
+    </div>
+  </div>
+
+  <div class="opt-panel">
+    <h2>ATM vol term structure</h2>
+    <p class="opt-hint">Every quoted tenor's own ATM vol, ON through 2Y — context for where today's
+      pricing sits, not an input the pricing itself uses. Filled points are the bracket tenors above;
+      the dashed line marks this option's own interpolated vol/time. Click a point for its 30-day history.</p>
+    <svg id="fxopt-term-chart" viewBox="0 0 760 220"></svg>
+    <div class="opt-legend">
+      <span><span class="dot" style="background:#fff;border:2px solid var(--up)"></span>tenor ATM</span>
+      <span><span class="dot" style="background:var(--up)"></span>bracket tenor</span>
+      <span><span style="display:inline-block;width:14px;height:0;border-top:1.5px dashed #2b6cb0;vertical-align:middle"></span>this option (interpolated)</span>
+    </div>
+    <div id="fxopt-drilldown" hidden style="margin-top:14px; border-top:1px solid var(--panel-border); padding-top:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <strong id="fxopt-drilldown-title" style="font-size:13px;">30-day history</strong>
+        <button type="button" id="fxopt-drilldown-close">Close</button>
+      </div>
+      <div id="fxopt-drilldown-error" class="opt-hint"></div>
+      <svg id="fxopt-drilldown-chart" viewBox="0 0 760 180"></svg>
+    </div>
+  </div>
+
+  <div class="opt-panel">
+    <h2>Bracketing tenors</h2>
+    <p class="opt-hint">The requested expiry rarely lands on one of Bloomberg's quoted tenors, so the
+      vol and forward above are interpolated between the tenors bracketing it: linear in total variance
+      (σ²×T) for the vol, linear in time for the forward.</p>
+    <div class="opt-scroll">
+      <table class="opt-table">
+        <thead><tr><th>Tenor</th><th>Date</th><th class="num">T (years)</th><th class="num">Vol (this tenor)</th>
+          <th>Kind</th><th class="num">Forward</th><th>Bloomberg tags</th></tr></thead>
+        <tbody id="fxopt-legs"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="opt-panel">
+    <h2>How this is priced</h2>
+    <div class="opt-formula">price = F·N(d1) − K·N(d2)   (call, undiscounted)
+price = K·N(−d2) − F·N(−d1)   (put)
+d1 = [ln(F/K) + ½σ²T] / (σ√T),  d2 = d1 − σ√T</div>
+    <ul class="opt-hint" style="padding-left:18px;">
+      <li><strong>No Bloomberg tag prices this strike directly.</strong> The smile is recovered from
+        each tenor's ATM vol + 25D/10D risk-reversal &amp; butterfly quotes:
+        vol(25D call)=ATM+BF25+½RR25, vol(25D put)=ATM+BF25−½RR25 (and likewise at 10D).</li>
+      <li><strong>Strikes are recovered by inverting the forward-delta formula</strong> (d1=N⁻¹(δ) for
+        a call, N⁻¹(1−δ) for a put; K=F·exp(−d1·σ√T+½σ²T)) by default. The "Premium-adj. delta"
+        checkbox switches to that other convention instead (several pairs, JPY crosses among them,
+        quote that way in practice) — nothing here confirms which convention any given pair actually
+        uses, so it's offered rather than silently assumed.</li>
+      <li><strong>ATM strike ≈ forward.</strong> The true delta-neutral-straddle correction is a few
+        pips to a percent at most for these tenors.</li>
+      <li><strong>Domestic (quote-currency) discounting is dropped.</strong> The quoted forward already
+        embeds the rate differential; only the discount factor itself (worth basis points here) is
+        dropped.</li>
+      <li><strong>"Premium %" is against the call currency</strong>: a put on the base currency calls
+        the quote currency (premium ÷ strike); a call on the base currency calls the base currency
+        itself (premium ÷ spot).</li>
+      <li>This is a modelled fair value, not a dealer's quote: it carries none of a real market-maker's
+        skew, inventory, or bid/ask.</li>
+    </ul>
+  </div>
+</main>
+</div>
+
+<div id="tab-spx" class="tab-panel" hidden>
+<main>
+  <div class="opt-warn">
+    <strong>To do</strong>
+    <ul>
+      <li>Hook up to Aladdin orders: pull SPX option orders and let the user select one for valuation instead of typing it in below.</li>
+      <li>Read the order's contract count/direction so a sale/unwind can be flagged and sized automatically.</li>
+      <li>Terminal connect: click the spot (or any live field) to load that security in the actual Bloomberg Terminal.</li>
+    </ul>
+  </div>
+
+  <div class="opt-panel">
+    <div class="opt-row" style="justify-content:space-between;">
+      <div style="display:flex; gap:24px; align-items:flex-end; flex-wrap:wrap;">
+        <div>
+          <div class="opt-hint" style="margin:0 0 4px;">Mid price</div>
+          <div class="big-price" id="spxopt-mid">–</div>
+        </div>
+        <div>
+          <div class="opt-hint" style="margin:0 0 4px;">Resolved contract</div>
+          <div class="v mono" id="spxopt-ticker" style="font-size:13px;">–</div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <span class="opt-status" id="spxopt-status">connecting…</span>
+        <div class="opt-hint" id="spxopt-asof">–</div>
+      </div>
+    </div>
+    <div id="spxopt-error"></div>
+    <form class="opt-row" id="spxopt-form" style="margin-top:16px;">
+      <div class="opt-field" style="width:150px;">
+        <label for="spxopt-type">Type</label>
+        <select id="spxopt-type">
+          <option value="call">Call</option>
+          <option value="put">Put</option>
+        </select>
+      </div>
+      <div class="opt-field" style="width:140px;">
+        <label for="spxopt-strike">Strike</label>
+        <input id="spxopt-strike" type="number" step="5" value="7650">
+      </div>
+      <div class="opt-field" style="width:150px;">
+        <label for="spxopt-expiry">Expiry</label>
+        <input id="spxopt-expiry" type="date">
+      </div>
+      <div class="opt-field" style="width:120px;">
+        <label for="spxopt-contracts">Contracts</label>
+        <input id="spxopt-contracts" type="number" step="1" min="1" value="1">
+      </div>
+      <div class="opt-field" style="width:auto;"><button type="submit">Revalue</button></div>
+    </form>
+    <p class="opt-hint" id="spxopt-snap-note" style="margin-top:8px;"></p>
+  </div>
+
+  <div class="opt-panel">
+    <div class="opt-row" style="margin-bottom:14px;">
+      <div class="opt-field" style="width:150px;">
+        <label for="spxopt-spot-override">Spot override</label>
+        <input id="spxopt-spot-override" type="number" step="0.01" placeholder="live">
+      </div>
+      <div class="opt-field" style="width:150px;">
+        <label for="spxopt-vol-override">Vol override (%)</label>
+        <input id="spxopt-vol-override" type="number" step="0.01" placeholder="live">
+      </div>
+      <p class="opt-hint" style="flex:1; min-width:220px; margin:0 0 7px;">Leave either blank to use the live
+        value. Unlike the FX Option tab, this isn't a full model reprice — Bloomberg computes this contract's
+        own greeks and there's no second pricer here to rerun (see "How this is priced" below) — so an override
+        instead applies a linear scenario off those live greeks: price + delta·ΔS + vega·Δvol. Deliberately
+        no gamma term — for a short-dated, high-gamma contract that term explodes past what an option could
+        actually be worth for anything but a tiny move. Good for a small move; treat it as a rough estimate,
+        not a repriced quote, for a larger one.</p>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="k">Spot (SPX Index)</div><div class="v" id="spxopt-spot">–</div><div class="age" id="spxopt-spot-age"></div></div>
+      <div class="stat"><div class="k">Bid / Ask</div><div class="v" id="spxopt-bidask">–</div></div>
+      <div class="stat"><div class="k">Implied vol</div><div class="v" id="spxopt-iv">–</div></div>
+      <div class="stat"><div class="k">Scenario price</div><div class="v" id="spxopt-scenario-price">–</div></div>
+    </div>
+  </div>
+
+  <div class="opt-panel">
+    <h2>Greeks (per contract)</h2>
+    <p class="opt-hint">Read directly off Bloomberg's own analytics for this specific listed contract — not
+      re-derived here. Delta/gamma/vega/rho are Bloomberg's DELTA/GAMMA/VEGA/RHO fields; theta is
+      OPT_THETA_MID (the plain THETA field errors "not applicable" on SPX index options — confirmed live).</p>
+    <div class="stat-row">
+      <div class="stat"><div class="k">Delta</div><div class="v" id="spxopt-delta">–</div></div>
+      <div class="stat"><div class="k">Gamma</div><div class="v" id="spxopt-gamma">–</div></div>
+      <div class="stat"><div class="k">Vega</div><div class="v" id="spxopt-vega">–</div></div>
+      <div class="stat"><div class="k">Theta / day</div><div class="v" id="spxopt-theta">–</div></div>
+      <div class="stat"><div class="k">Rho</div><div class="v" id="spxopt-rho">–</div></div>
+    </div>
+  </div>
+
+  <div class="opt-panel">
+    <h2>Position (this many contracts)</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="k">Premium, total</div><div class="v" id="spxopt-premium-total">–</div></div>
+      <div class="stat"><div class="k">Dollar delta</div><div class="v" id="spxopt-dollar-delta">–</div></div>
+      <div class="stat"><div class="k">Dollar gamma / point</div><div class="v" id="spxopt-dollar-gamma">–</div></div>
+    </div>
+    <p class="opt-hint" style="margin-top:8px;">$100/point contract multiplier (standard SPX). Dollar delta is
+      the position's $-per-1-point-move-in-SPX exposure; dollar gamma is how much that itself changes per
+      further 1-point move — deliberately not scaled up to a 1% move (a 1%, ~75pt move is too large for a
+      single point-gamma estimate to stay linear over — see the override note above for the same reason).</p>
+  </div>
+
+  <div class="opt-panel">
+    <h2>How this is priced</h2>
+    <p class="opt-hint">Unlike the FX Option tab, there's no model here at all: SPX/SPXW options are
+      exchange-listed (Cboe), and Bloomberg already carries live bid/ask/last plus its own computed
+      delta/gamma/vega/rho/theta directly on each specific contract. Reading Bloomberg's own analytics for the
+      real listed contract is strictly more faithful than re-deriving a vol surface from moneyness-bucketed
+      fields and running a second, independent pricer on top of it, so that's what this page does.</p>
+    <ul class="opt-hint" style="padding-left:18px;">
+      <li><strong>Strike snapping.</strong> SPX strikes are listed at fixed increments (25pts near the money
+        for near-dated expiries, confirmed live), not at every number — the strike you type is snapped to the
+        nearest one that's actually listed (shown above if it differs from what you typed).</li>
+      <li><strong>The ticker is "SPXW US {expiry} {C|P}{strike} Index".</strong> "SPXW" resolved identical data
+        to "SPX" for every near-dated expiry checked live, so it's used unconditionally rather than guessing
+        which root a given expiry needs.</li>
+      <li><strong>Overrides are a linear (delta/vega) scenario, not a reprice</strong> — see the note above the
+        stats. There's deliberately no independent Black-Scholes model here to rerun at a hypothetical
+        spot/vol (that would be a second, unverified pricer sitting next to Bloomberg's own), and deliberately
+        no gamma term either — tried it live and a modest spot override on a short-dated, high-gamma contract
+        sent the quadratic term past what the option could actually be worth. A plain linear scenario off the
+        live greeks is the honest alternative to either.</li>
+    </ul>
+  </div>
+</main>
+</div>
 
 <footer>Data sourced live from a locally running Bloomberg Terminal via the Desktop API (blpapi). Bloomberg data streams live via a real-time subscription (no polling).</footer>
 
 <script>
+// Remembers which tab was open across a page reload (F5) - without this,
+// a refresh always drops back to the Dashboard tab regardless of where you
+// were, which is jarring when you're mid-way through pricing something on
+// another tab. Wrapped in try/catch throughout: private browsing or
+// disabled storage should never break basic tab switching.
+const TAB_STORAGE_KEY = 'dashboard:activeTab';
+
+function activateTab(name) {
+  const btn = document.querySelector(`.tab-btn[data-tab="${name}"]`);
+  const panel = document.getElementById('tab-' + name);
+  if (!btn || !panel) return false;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.hidden = true);
+  btn.classList.add('active');
+  panel.hidden = false;
+  try { localStorage.setItem(TAB_STORAGE_KEY, name); } catch (err) { /* fine to lose this across sessions */ }
+  return true;
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+});
+
+try {
+  const savedTab = localStorage.getItem(TAB_STORAGE_KEY);
+  if (savedTab) activateTab(savedTab);
+} catch (err) { /* falls back to the Dashboard tab already active in the HTML */ }
+
 const CATEGORY_ORDER = ["Equities", "Rates", "FX", "Commodities", "Volatility"];
 let history = {};
 let previousValues = {};
@@ -308,6 +753,13 @@ function tickClock() {
   document.getElementById("clock").textContent = fmtLondonTime(new Date());
 }
 
+// pywebview's JS bridge (window.pywebview.api) attaches asynchronously after
+// the page loads - unlike a browser tab talking to a real HTTP server, calls
+// made before it's ready would just throw. Every entry point below (the base
+// dashboard's own init, and the FX/SPX tabs' bootstrap connects) is gated on
+// this, not just the first one - pywebviewready fires once for the whole
+// page, and any script block whose IIFE runs before that would otherwise
+// silently do nothing.
 function whenApiReady(cb) {
   if (window.pywebview && window.pywebview.api) { cb(); return; }
   window.addEventListener('pywebviewready', cb, { once: true });
@@ -320,6 +772,774 @@ whenApiReady(async function init() {
   setInterval(tickClock, 1000);
   tickClock();
 });
+</script>
+
+<script>
+// --- FX option tab -----------------------------------------------------
+// Realtime Garman-Kohlhagen (Black-76) valuation off Bloomberg's own OTC FX
+// vol surface (ATM/RR/BF) - see fxoption.py's module docstring for the full
+// pricing approach. The server polls the tags this instrument needs (a
+// bounded, single-instrument tag set - not the whole G10_PAIRS universe) on
+// a timer and recomputes on every /api/fxoption/snapshot poll; this script
+// polls that endpoint and also reprices client-side (identical Black-76
+// formulas) whenever the spot/vol override fields hold a number, so an
+// override reprices instantly with no round trip.
+
+const FXOPT_PAIRS = {
+  EURUSD: ["EUR", "USD"], GBPUSD: ["GBP", "USD"], AUDUSD: ["AUD", "USD"], NZDUSD: ["NZD", "USD"],
+  USDJPY: ["USD", "JPY"], USDCHF: ["USD", "CHF"], USDCAD: ["USD", "CAD"], USDSEK: ["USD", "SEK"], USDNOK: ["USD", "NOK"],
+  CHFJPY: ["CHF", "JPY"], EURJPY: ["EUR", "JPY"], GBPCHF: ["GBP", "CHF"], EURGBP: ["EUR", "GBP"], EURCHF: ["EUR", "CHF"],
+};
+
+let fxoptLatest = null;
+let fxoptLastPrice = null;
+let fxoptLastDelta = null;  // spot delta per unit of base-ccy notional, for the delta-amount stat
+let fxoptPrevLivePct = null;  // last *live* (non-override) premium %, for the price-flash animation
+let fxoptPendingStrikeAutofill = false;
+// Separate from fxoptPendingStrikeAutofill (which drives the deliberate
+// "snap to spot on pair change / first-ever load" UX): this is a one-shot
+// safety net so a *bad remembered* strike (e.g. left over from a pair whose
+// scale doesn't suit a new one, or just stale) can't wedge the page in a
+// permanent pricing error - if any error comes back carrying a live spot
+// and we haven't already tried recovering for this instrument, snap to
+// spot once and retry. Reset on every deliberate instrument change so it's
+// available again for the next one.
+let fxoptRecoveryAttempted = false;
+let fxoptPollTimer = null;
+
+function fxfmt(n, dp) {
+  return (n === null || n === undefined || Number.isNaN(n)) ? '–' : Number(n).toFixed(dp);
+}
+
+function fxStripCommas(s) { return String(s).replace(/,/g, ''); }
+function fxFormatWithCommas(numStr) {
+  if (numStr === '' || Number.isNaN(Number(numStr))) return numStr;
+  const parts = String(numStr).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return parts.join('.');
+}
+function fxEscapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function fxopt() { return document.getElementById.bind(document); }
+const $fx = (id) => document.getElementById(id);
+
+function fxoptPopulatePairs() {
+  const sel = $fx('fxopt-pair');
+  sel.innerHTML = Object.keys(FXOPT_PAIRS).map(p =>
+    `<option value="${p}">${p.slice(0, 3)}/${p.slice(3)}</option>`).join('');
+}
+
+function fxoptUpdateLabelsForPair() {
+  const [base, quote] = FXOPT_PAIRS[$fx('fxopt-pair').value];
+  const typeSelect = $fx('fxopt-type');
+  typeSelect.options[0].text = base + ' Put / ' + quote + ' Call';
+  typeSelect.options[1].text = base + ' Call / ' + quote + ' Put';
+  $fx('fxopt-strike-unit').textContent = quote + ' per ' + base;
+  $fx('fxopt-spot-unit').textContent = quote + ' per ' + base;
+  fxoptUpdateNotionalUnitLabel();
+}
+
+function fxoptUpdateNotionalUnitLabel() {
+  const [base, quote] = FXOPT_PAIRS[$fx('fxopt-pair').value];
+  const isCall = $fx('fxopt-type').value === 'call';
+  $fx('fxopt-notional-unit').textContent = isCall ? base : quote;
+}
+
+const FXOPT_STORAGE_KEY = 'fxoption:lastSelection';
+
+function fxoptDefaultExpiry() {
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  return d.toISOString().slice(0, 10);
+}
+
+function fxoptLoadSavedSelection() {
+  // Returns true if a real remembered strike was restored (so the caller
+  // knows NOT to clobber it with a fresh live-spot autofill).
+  $fx('fxopt-expiry').value = fxoptDefaultExpiry();
+  try {
+    const raw = localStorage.getItem(FXOPT_STORAGE_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    if (saved.pair && FXOPT_PAIRS[saved.pair]) $fx('fxopt-pair').value = saved.pair;
+    if (saved.type === 'put' || saved.type === 'call') $fx('fxopt-type').value = saved.type;
+    if (saved.expiry) $fx('fxopt-expiry').value = saved.expiry;
+    if (typeof saved.premiumAdjusted === 'boolean') $fx('fxopt-premium-adjusted').checked = saved.premiumAdjusted;
+    if (saved.notional) $fx('fxopt-notional').value = fxFormatWithCommas(saved.notional);
+    if (saved.strike) { $fx('fxopt-strike').value = saved.strike; return true; }
+    return false;
+  } catch (err) { return false; /* fall back to defaults */ }
+}
+
+function fxoptSaveSelection() {
+  try {
+    localStorage.setItem(FXOPT_STORAGE_KEY, JSON.stringify({
+      pair: $fx('fxopt-pair').value, type: $fx('fxopt-type').value,
+      strike: $fx('fxopt-strike').value, expiry: $fx('fxopt-expiry').value,
+      premiumAdjusted: $fx('fxopt-premium-adjusted').checked,
+      notional: fxStripCommas($fx('fxopt-notional').value),
+    }));
+  } catch (err) { /* nothing to persist to */ }
+}
+
+async function fxoptPostInstrument() {
+  fxoptSaveSelection();
+  const body = {
+    pair: $fx('fxopt-pair').value,
+    strike: $fx('fxopt-strike').value || null,
+    expiry: $fx('fxopt-expiry').value,
+    type: $fx('fxopt-type').value,
+    premium_adjusted: $fx('fxopt-premium-adjusted').checked,
+  };
+  if (!body.strike) return;  // wait for autofill (spot arrives via the first poll) before posting
+  const status = $fx('fxopt-status');
+  status.textContent = 'connecting…';
+  status.className = 'opt-status';
+  try {
+    const data = await window.pywebview.api.set_fxoption_instrument(body);
+    if (data.error) {
+      $fx('fxopt-error').innerHTML = '<div class="opt-error">' + fxEscapeHtml(data.error) + '</div>';
+      return;
+    }
+  } catch (err) {
+    status.textContent = 'request failed';
+    return;
+  }
+  await fxoptPollOnce();
+}
+
+async function fxoptPollOnce() {
+  try {
+    const data = await window.pywebview.api.get_fxoption_snapshot();
+    fxoptRender(data);
+  } catch (err) {
+    $fx('fxopt-status').textContent = 'disconnected (retrying…)';
+    $fx('fxopt-status').className = 'opt-status';
+  }
+}
+
+function fxoptConnect() {
+  if (fxoptPollTimer) clearInterval(fxoptPollTimer);
+  fxoptPostInstrument();
+  fxoptPollTimer = setInterval(fxoptPollOnce, 3000);
+}
+
+function fxoptOnPairChange() {
+  fxoptUpdateLabelsForPair();
+  fxoptPendingStrikeAutofill = true;
+  fxoptRecoveryAttempted = false;
+  $fx('fxopt-drilldown').hidden = true;
+  // Post with whatever strike is already in the box (likely wrong scale for
+  // the new pair) purely to get a fresh spot tick; render() overwrites the
+  // strike box with that spot and re-posts once it arrives.
+  const strike = $fx('fxopt-strike').value;
+  if (!strike) { $fx('fxopt-strike').value = 1; }
+  fxoptConnect();
+}
+
+function fxoptLegRow(leg, quote) {
+  const tagsHtml = '<span class="src-tag" style="margin:0">[' + (leg.tags || []).join(', ') + ']</span>';
+  return '<tr><td>' + leg.tenor + '</td><td>' + leg.date + '</td><td class="num">' + fxfmt(leg.years, 4)
+    + '</td><td class="num">' + fxfmt(leg.vol_pct, 3) + '%</td><td>' + leg.vol_kind + '</td><td class="num">'
+    + quote + ' ' + fxfmt(leg.forward, 4) + '</td><td>' + tagsHtml + '</td></tr>';
+}
+
+function fxoptDrawSmile(leg, strike, quote) {
+  const svg = $fx('fxopt-smile-chart');
+  if (!leg) { svg.innerHTML = ''; return; }
+  const W = 760, H = 280, padL = 50, padR = 20, padT = 16, padB = 32;
+  const strikes = leg.curve.map(p => p.strike);
+  const vols = leg.curve.map(p => p.vol).concat(leg.quoted.map(p => p.vol));
+  const kMin = Math.min(...strikes), kMax = Math.max(...strikes);
+  let vMin = Math.min(...vols), vMax = Math.max(...vols);
+  const vPad = Math.max((vMax - vMin) * 0.15, 0.1);
+  vMin -= vPad; vMax += vPad;
+  const xOf = k => padL + (k - kMin) / (kMax - kMin) * (W - padL - padR);
+  const yOf = v => padT + (1 - (v - vMin) / (vMax - vMin)) * (H - padT - padB);
+  let s = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = vMin + (vMax - vMin) * i / 4, y = yOf(v);
+    s += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" style="stroke:var(--panel-border)" stroke-width="1"/>`;
+    s += `<text class="axis-label" x="${padL - 6}" y="${y + 3}" text-anchor="end">${v.toFixed(2)}</text>`;
+  }
+  const line = leg.curve.map(p => `${xOf(p.strike)},${yOf(p.vol)}`).join(' ');
+  s += `<polyline points="${line}" fill="none" style="stroke:var(--accent)" stroke-width="2"/>`;
+  for (const p of leg.quoted) {
+    const x = xOf(p.strike), y = yOf(p.vol);
+    s += `<circle cx="${x}" cy="${y}" r="4" style="fill:#fff;stroke:var(--up)" stroke-width="2"/>`;
+    s += `<text class="axis-label" x="${x}" y="${H - padB + 16}" text-anchor="middle">${p.label}</text>`;
+  }
+  const clampedK = Math.max(kMin, Math.min(kMax, strike));
+  const sx = xOf(clampedK);
+  s += `<line x1="${sx}" y1="${padT}" x2="${sx}" y2="${H - padB}" style="stroke:var(--down)" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+  s += `<text class="vol-label" x="${sx}" y="${padT + 10}" text-anchor="middle" fill="var(--down)">K=${quote} ${strike}</text>`;
+  svg.innerHTML = s;
+}
+
+function fxoptDrawTerm(termStructure, legs, optionYears, optionSigmaPct) {
+  const svg = $fx('fxopt-term-chart');
+  if (!termStructure || termStructure.length < 2) { svg.innerHTML = ''; return; }
+  const W = 760, H = 220, padL = 42, padR = 16, padT = 14, padB = 26;
+  const vols = termStructure.map(p => p.vol_pct).concat([optionSigmaPct]);
+  let vMin = Math.min(...vols), vMax = Math.max(...vols);
+  const vPad = Math.max((vMax - vMin) * 0.15, 0.1);
+  vMin -= vPad; vMax += vPad;
+  const xOf = i => padL + (termStructure.length === 1 ? 0 : i / (termStructure.length - 1) * (W - padL - padR));
+  const yOf = v => padT + (1 - (v - vMin) / (vMax - vMin)) * (H - padT - padB);
+  let s = '';
+  for (let i = 0; i <= 3; i++) {
+    const v = vMin + (vMax - vMin) * i / 3, y = yOf(v);
+    s += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" style="stroke:var(--panel-border)" stroke-width="1"/>`;
+    s += `<text class="axis-label" x="${padL - 6}" y="${y + 3}" text-anchor="end">${v.toFixed(2)}</text>`;
+  }
+  const linePts = termStructure.map((p, i) => `${xOf(i)},${yOf(p.vol_pct)}`).join(' ');
+  s += `<polyline points="${linePts}" fill="none" style="stroke:var(--accent)" stroke-width="2"/>`;
+  const bracketSet = new Set((legs || []).map(leg => leg.tenor));
+  termStructure.forEach((p, i) => {
+    const x = xOf(i), y = yOf(p.vol_pct);
+    const inBracket = bracketSet.has(p.tenor);
+    s += `<circle class="term-point" data-tenor="${p.tenor}" cx="${x}" cy="${y}" r="11" fill="transparent"/>`;
+    s += `<circle cx="${x}" cy="${y}" r="${inBracket ? 5 : 3}" `
+       + `style="fill:${inBracket ? 'var(--up)' : '#fff'};stroke:var(--up)" stroke-width="2" pointer-events="none"/>`;
+    s += `<text class="axis-label" x="${x}" y="${H - padB + 16}" text-anchor="middle">${p.tenor}</text>`;
+  });
+  const idxByTenor = {};
+  termStructure.forEach((p, i) => { idxByTenor[p.tenor] = i; });
+  let optionX = null;
+  if (legs && legs.length === 1 && idxByTenor[legs[0].tenor] !== undefined) {
+    optionX = xOf(idxByTenor[legs[0].tenor]);
+  } else if (legs && legs.length === 2) {
+    const iNear = idxByTenor[legs[0].tenor], iFar = idxByTenor[legs[1].tenor];
+    if (iNear !== undefined && iFar !== undefined) {
+      const nearYears = legs[0].years, farYears = legs[1].years;
+      const frac = farYears === nearYears ? 0 : (optionYears - nearYears) / (farYears - nearYears);
+      optionX = xOf(iNear + frac * (iFar - iNear));
+    }
+  }
+  if (optionX !== null) {
+    s += `<line x1="${optionX}" y1="${padT}" x2="${optionX}" y2="${H - padB}" `
+       + `style="stroke:#2b6cb0" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+  }
+  svg.innerHTML = s;
+}
+
+const fxoptHistoryCache = {};
+
+async function fxoptOpenDrilldown(tenor) {
+  const panel = $fx('fxopt-drilldown');
+  const errBox = $fx('fxopt-drilldown-error');
+  const pair = $fx('fxopt-pair').value;
+  panel.hidden = false;
+  $fx('fxopt-drilldown-title').textContent = '30-day ATM vol move — ' + tenor;
+  errBox.textContent = '';
+  const cacheKey = pair + ':' + tenor;
+  if (fxoptHistoryCache[cacheKey]) { fxoptDrawDrilldown(fxoptHistoryCache[cacheKey]); return; }
+  $fx('fxopt-drilldown-chart').innerHTML = '';
+  errBox.textContent = 'Loading…';
+  try {
+    const data = await window.pywebview.api.get_fxoption_history(pair, tenor);
+    if (data.error) { errBox.textContent = data.error; return; }
+    errBox.textContent = '';
+    fxoptHistoryCache[cacheKey] = data;
+    fxoptDrawDrilldown(data);
+  } catch (err) {
+    errBox.textContent = 'Request failed: ' + String(err);
+  }
+}
+
+function fxoptDrawDrilldown(data) {
+  const svg = $fx('fxopt-drilldown-chart');
+  const dates = data.dates || [], vols = data.vols || [];
+  if (dates.length < 2) {
+    $fx('fxopt-drilldown-error').textContent = 'Not enough history yet for this tenor.';
+    svg.innerHTML = '';
+    return;
+  }
+  const W = 760, H = 180, padL = 42, padR = 16, padT = 14, padB = 24;
+  let vMin = Math.min(...vols), vMax = Math.max(...vols);
+  const vPad = Math.max((vMax - vMin) * 0.15, 0.05);
+  vMin -= vPad; vMax += vPad;
+  const xOf = i => padL + i / (dates.length - 1) * (W - padL - padR);
+  const yOf = v => padT + (1 - (v - vMin) / (vMax - vMin)) * (H - padT - padB);
+  let s = '';
+  for (let i = 0; i <= 3; i++) {
+    const v = vMin + (vMax - vMin) * i / 3, y = yOf(v);
+    s += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" style="stroke:var(--panel-border)" stroke-width="1"/>`;
+    s += `<text class="axis-label" x="${padL - 6}" y="${y + 3}" text-anchor="end">${v.toFixed(2)}</text>`;
+  }
+  const pts = dates.map((d, i) => `${xOf(i)},${yOf(vols[i])}`).join(' ');
+  s += `<polyline points="${pts}" fill="none" style="stroke:#2b6cb0" stroke-width="2"/>`;
+  const labelEvery = Math.max(1, Math.ceil(dates.length / 6));
+  dates.forEach((d, i) => {
+    const x = xOf(i), y = yOf(vols[i]);
+    s += `<circle cx="${x}" cy="${y}" r="2.5" style="fill:#2b6cb0"/>`;
+    if (i === 0 || i === dates.length - 1 || i % labelEvery === 0) {
+      const label = String(d).length >= 8 ? String(d).slice(5, 7) + '/' + String(d).slice(8, 10) : d;
+      s += `<text class="axis-label" x="${x}" y="${H - padB + 16}" text-anchor="middle">${label}</text>`;
+    }
+  });
+  svg.innerHTML = s;
+}
+
+$fx('fxopt-term-chart').addEventListener('click', (event) => {
+  if (event.target.classList.contains('term-point')) fxoptOpenDrilldown(event.target.dataset.tenor);
+});
+$fx('fxopt-drilldown-close').addEventListener('click', () => { $fx('fxopt-drilldown').hidden = true; });
+
+// Client-side Black-76 - identical formulas to fxoption.black76 server-side
+// (see "How this is priced") - so the vol/spot override fields reprice
+// instantly without a round trip: overriding either changes nothing about
+// the market data (forward/bracket/smile), only the number plugged into
+// this same formula.
+function fxNormCdf(x) {
+  const sign = x < 0 ? -1 : 1;
+  const ax = Math.abs(x) / Math.sqrt(2);
+  const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+  const t = 1 / (1 + p * ax);
+  const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-ax * ax);
+  return 0.5 * (1 + sign * y);
+}
+function fxNormPdf(x) { return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI); }
+
+function fxBlack76(forward, strike, years, sigma, isCall) {
+  const sqrtT = Math.sqrt(years);
+  const d1 = (Math.log(forward / strike) + 0.5 * sigma * sigma * years) / (sigma * sqrtT);
+  const d2 = d1 - sigma * sqrtT;
+  const price = isCall ? forward * fxNormCdf(d1) - strike * fxNormCdf(d2)
+                        : strike * fxNormCdf(-d2) - forward * fxNormCdf(-d1);
+  const deltaF = isCall ? fxNormCdf(d1) : fxNormCdf(d1) - 1.0;
+  return { price, deltaF, d1, d2 };
+}
+
+function fxoptApplyOverrides() {
+  if (!fxoptLatest || fxoptLatest.error) return;
+  const volRaw = $fx('fxopt-vol-override').value.trim();
+  const volOverridden = volRaw !== '' && Number(volRaw) > 0;
+  const sigmaPct = volOverridden ? Number(volRaw) : fxoptLatest.sigma_pct;
+  const sigma = sigmaPct / 100;
+
+  const spotRaw = $fx('fxopt-spot-override').value.trim();
+  const spotOverridden = spotRaw !== '' && Number(spotRaw) > 0;
+  const spot = spotOverridden ? Number(spotRaw) : fxoptLatest.spot;
+
+  const { forward, strike, years_to_expiry: years, is_call: isCall, quote } = fxoptLatest;
+  const priced = fxBlack76(forward, strike, years, sigma, isCall);
+  // Same discount factor the live snapshot used - a spot/vol override
+  // changes neither the quote-currency rate nor time to expiry, so it's
+  // reused as-is rather than recomputed (see fxoption.value_option).
+  const df = (fxoptLatest.discount_factor != null) ? fxoptLatest.discount_factor : 1.0;
+  const price = priced.price * df;
+  const forwardOverSpot = forward / spot;
+  const pct = price / (isCall ? spot : strike) * 100;
+  const deltaSpot = priced.deltaF * forwardOverSpot * df;
+  const pdf1 = fxNormPdf(priced.d1);
+  const vega = forward * pdf1 * Math.sqrt(years) * df;
+  const gammaSpot = (pdf1 / (forward * sigma * Math.sqrt(years))) * forwardOverSpot * forwardOverSpot * df;
+  const thetaAnnual = -forward * pdf1 * sigma / (2 * Math.sqrt(years)) * df;
+
+  $fx('fxopt-spot').textContent = quote + ' ' + fxfmt(spot, 4) + (spotOverridden ? ' (override)' : '');
+  $fx('fxopt-vol').textContent = fxfmt(sigmaPct, 3) + '%' + (volOverridden ? ' (override)' : '');
+  $fx('fxopt-premium-pct').textContent = fxfmt(pct, 3) + '%';
+  $fx('fxopt-delta').textContent = fxfmt(deltaSpot, 4);
+  $fx('fxopt-smile-delta').textContent = fxfmt(priced.deltaF, 4);
+  $fx('fxopt-gamma').textContent = fxfmt(gammaSpot, 6);
+  $fx('fxopt-vega').textContent = quote + ' ' + fxfmt(vega / 100, 4);
+  $fx('fxopt-theta').textContent = quote + ' ' + fxfmt(thetaAnnual / 365, 4);
+  $fx('fxopt-df').textContent = fxfmt(df, 4) + (fxoptLatest.quote_rate_pct != null
+    ? ` (${fxfmt(fxoptLatest.quote_rate_pct, 2)}% ${quote} o/n)` : ' (no live rate - undiscounted)');
+
+  fxoptLastPrice = price;
+  fxoptLastDelta = deltaSpot;
+  fxoptUpdateNotionalValue();
+}
+
+function fxoptUpdateNotionalValue() {
+  const box = $fx('fxopt-value-callccy');
+  const gbpBox = $fx('fxopt-value-gbp');
+  const deltaBox = $fx('fxopt-delta-amount');
+  if (!fxoptLatest || fxoptLatest.error || fxoptLastPrice === null) return;
+  const notionalCallCcy = Number(fxStripCommas($fx('fxopt-notional').value)) || 0;
+  // Notional is entered in the call currency (whichever currency this
+  // option actually calls - see fxoptUpdateNotionalUnitLabel); delta itself
+  // is always expressed per unit of *base*-currency notional (fxoption.
+  // value_option's "delta" field), so a put's call-currency (quote) entry
+  // needs converting to base terms via the strike first, same conversion
+  // updateNotionalValue's premium math already does.
+  const notionalBase = fxoptLatest.is_call ? notionalCallCcy : notionalCallCcy / fxoptLatest.strike;
+  const premiumQuote = fxoptLastPrice * notionalBase;
+  const unit = fxoptLatest.call_ccy;
+  box.textContent = unit + ' ' + fxFormatWithCommas(fxfmt(premiumQuote, 0));
+  if (fxoptLatest.gbp_per_call_ccy_unit != null) {
+    gbpBox.textContent = 'GBP ' + fxFormatWithCommas(fxfmt(premiumQuote * fxoptLatest.gbp_per_call_ccy_unit, 0));
+  } else {
+    gbpBox.textContent = 'n/a (GBP cross not live yet)';
+  }
+  // Delta hedge amount, in the base currency - the "dominant" currency for
+  // an FX spot delta hedge, since that's the currency actually bought or
+  // sold in the spot market to hedge this position. Signed: positive means
+  // long/buy the base currency to hedge a long position in this option,
+  // negative means short/sell it.
+  if (fxoptLastDelta !== null) {
+    const deltaAmountBase = fxoptLastDelta * notionalBase;
+    const sign = deltaAmountBase >= 0 ? '+' : '−';
+    deltaBox.textContent = sign + fxoptLatest.base + ' ' + fxFormatWithCommas(fxfmt(Math.abs(deltaAmountBase), 0));
+  }
+}
+
+// Live vol surface: every quoted tenor drawn as its own smile "ribbon",
+// arranged front-to-back by time to expiry (Joy-Division/ridge-plot style)
+// - see the panel's own hint text. Each ribbon's x-axis is *relative*
+// position along that tenor's own quoted strike range (0=P10..1=C10), not
+// absolute strike, so every ribbon spans the same width despite far tenors
+// quoting a much wider absolute strike range than near ones.
+function fxoptDrawSurface(surface, legs, optionStrike) {
+  const svg = $fx('fxopt-surface-chart');
+  const note = $fx('fxopt-surface-note');
+  if (!surface || surface.length < 2) { svg.innerHTML = ''; return; }
+  const totalTenors = 13;  // fxoption.TENORS length
+  note.textContent = surface.length >= totalTenors
+    ? `All ${totalTenors} quoted tenors live right now.`
+    : `${surface.length} of ${totalTenors} quoted tenors live right now (rest still refreshing).`;
+
+  const n = surface.length;
+  const W = 760, H = 340;
+  const dxLayer = 15, dyLayer = -8;
+  const padL = 46, padR = 16, padT = 18, padB = 60;
+  const plotW = W - padL - padR - dxLayer * (n - 1);
+  const plotH = H - padT - padB - Math.abs(dyLayer) * (n - 1);
+  const baseX = padL, baseY = H - padB;
+
+  const allVols = surface.flatMap(t => t.curve.map(p => p.vol));
+  let vMin = Math.min(...allVols), vMax = Math.max(...allVols);
+  const vPad = (vMax - vMin) * 0.1 || 0.5;
+  vMin -= vPad; vMax += vPad;
+
+  function project(layerIdx, xFrac, vol) {
+    const x = baseX + layerIdx * dxLayer + xFrac * plotW;
+    const y = baseY + layerIdx * dyLayer - ((vol - vMin) / (vMax - vMin)) * plotH;
+    return [x, y];
+  }
+  function ridgeColor(t) {
+    // cool teal (front, short tenor) -> warm gold (back, long tenor)
+    const hue = 190 - t * 155;
+    return `hsl(${hue}, 75%, ${58 - t * 12}%)`;
+  }
+
+  const bracketTenors = new Set((legs || []).map(l => l.tenor));
+  let s = '';
+  // Back-to-front: surface[] is ON..2Y ascending (index 0 = shortest = front),
+  // so iterate longest-first so nearer/lower ribbons are drawn (and occlude) last.
+  for (let i = n - 1; i >= 0; i--) {
+    const layer = surface[i];
+    const curvePts = layer.curve.map((p, j) => project(i, j / (layer.curve.length - 1), p.vol));
+    const inBracket = bracketTenors.has(layer.tenor);
+    const color = inBracket ? 'var(--accent)' : ridgeColor(i / (n - 1));
+    const lineStr = curvePts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const first = curvePts[0], last = curvePts[curvePts.length - 1];
+    const floorY = baseY + i * dyLayer + 46;
+    const poly = `${first[0].toFixed(1)},${floorY} ` + lineStr + ` ${last[0].toFixed(1)},${floorY}`;
+    // Filled with the panel's own background to occlude ribbons behind it.
+    s += `<polygon points="${poly}" fill="var(--panel)" stroke="none"/>`;
+    s += `<polyline points="${lineStr}" fill="none" stroke="${color}" `
+       + `stroke-width="${inBracket ? 2.6 : 1.3}" opacity="${inBracket ? 1 : 0.8}"/>`;
+    s += `<text class="axis-label" x="${(first[0] - 6).toFixed(1)}" y="${(first[1] + 3).toFixed(1)}" `
+       + `text-anchor="end" fill="${inBracket ? 'var(--accent)' : 'var(--muted)'}">${layer.tenor}</text>`;
+
+    // Pin this option's own strike onto a bracket tenor's ribbon.
+    if (inBracket) {
+      const lo = layer.points[0].strike, hi = layer.points[layer.points.length - 1].strike;
+      const frac = Math.max(0, Math.min(1, (optionStrike - lo) / (hi - lo)));
+      const idx = Math.round(frac * (layer.curve.length - 1));
+      const [px, py] = project(i, idx / (layer.curve.length - 1), layer.curve[idx].vol);
+      s += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="5.5" fill="var(--down)" stroke="#fff" stroke-width="1.5"/>`;
+    }
+  }
+  s += `<text class="axis-label" x="${padL}" y="${H - 14}">← put wing</text>`;
+  s += `<text class="axis-label" x="${W - padR}" y="${H - 14}" text-anchor="end">call wing →</text>`;
+  svg.innerHTML = s;
+}
+
+function fxoptRender(data) {
+  const errBox = $fx('fxopt-error');
+  const status = $fx('fxopt-status');
+  if (data.error) {
+    errBox.innerHTML = '<div class="opt-error">' + fxEscapeHtml(data.error) + '</div>';
+    status.textContent = 'waiting for data';
+    status.className = 'opt-status';
+    fxoptLatest = data;
+    // Even a pricing failure (e.g. the placeholder strike a fresh pair
+    // starts with) carries a real spot once one's arrived - autofill off
+    // that so a bad first guess self-corrects instead of erroring forever.
+    if ((fxoptPendingStrikeAutofill || !fxoptRecoveryAttempted) && data.spot) {
+      fxoptPendingStrikeAutofill = false;
+      fxoptRecoveryAttempted = true;
+      $fx('fxopt-strike').value = data.spot.toFixed(4);
+      fxoptPostInstrument();
+    }
+    return;
+  }
+  errBox.innerHTML = '';
+  status.textContent = 'live';
+  status.className = 'opt-status live';
+  fxoptLatest = data;
+
+  if (fxoptPendingStrikeAutofill) {
+    fxoptPendingStrikeAutofill = false;
+    $fx('fxopt-strike').value = data.spot.toFixed(4);
+    fxoptPostInstrument();
+    return;
+  }
+
+  $fx('fxopt-forward').textContent = data.quote + ' ' + fxfmt(data.forward, 4);
+  $fx('fxopt-days').textContent = data.days_to_expiry + 'd (' + fxfmt(data.years_to_expiry, 4) + 'y)';
+  $fx('fxopt-call-ccy').textContent = data.call_ccy;
+  $fx('fxopt-legs').innerHTML = data.legs.map(leg => fxoptLegRow(leg, data.quote)).join('');
+  $fx('fxopt-asof').textContent = data.as_of ? ('as of ' + new Date(data.as_of).toLocaleTimeString()) : '';
+  $fx('fxopt-spot-age').textContent = data.tag_error ? data.tag_error : '';
+
+  // Bloomberg source tags - literal ticker(s) each live field came off,
+  // straight from the server (fxoption.spot_tag/fwd_tag/atm_tag etc. - see
+  // get_fxoption_snapshot's `sources` block). Forward/vol can be 1 or 2
+  // tenors blended, hence the join.
+  const src = data.sources || {};
+  $fx('fxopt-spot-src').textContent = src.spot ? `[${src.spot}]` : '';
+  $fx('fxopt-forward-src').textContent = src.forward && src.forward.length
+    ? `[computed — ${src.forward.join(' / ')}]` : '';
+  $fx('fxopt-vol-src').textContent = src.vol && src.vol.length
+    ? `[computed — ${src.vol.length} tags: ${src.vol.slice(0, 2).join(', ')}${src.vol.length > 2 ? ', …' : ''}]` : '';
+  $fx('fxopt-rate-src').textContent = src.rate ? `[${src.rate}]` : '[no live rate for this currency]';
+  $fx('fxopt-gbp-src').textContent = src.gbp ? `[${src.gbp}]` : (data.call_ccy === 'GBP' ? '[= call ccy]' : '');
+
+  // Flash the hero price on a genuine *live* move - only when nothing's
+  // currently overridden (an override edit shouldn't look like a live tick).
+  const noOverrideActive = !$fx('fxopt-spot-override').value.trim() && !$fx('fxopt-vol-override').value.trim();
+  if (noOverrideActive && fxoptPrevLivePct !== null && data.premium_pct_call_ccy !== fxoptPrevLivePct) {
+    const wrap = $fx('fxopt-premium-wrap');
+    wrap.classList.remove('price-flash-up', 'price-flash-down');
+    void wrap.offsetWidth;  // restart the CSS animation even if the same class was just used
+    wrap.classList.add(data.premium_pct_call_ccy > fxoptPrevLivePct ? 'price-flash-up' : 'price-flash-down');
+  }
+  fxoptPrevLivePct = data.premium_pct_call_ccy;
+
+  fxoptApplyOverrides();
+  fxoptDrawSmile(data.legs[0], data.strike, data.quote);
+  fxoptDrawTerm(data.term_structure, data.legs, data.years_to_expiry, data.sigma_pct);
+  fxoptDrawSurface(data.surface, data.legs, data.strike);
+}
+
+$fx('fxopt-pair').addEventListener('change', fxoptOnPairChange);
+// Type and premium-adjusted-delta both change how this instrument prices,
+// not just display labels - apply immediately (reconnect) rather than
+// silently waiting for a manual "Revalue" click, which wasn't obvious
+// (strike/expiry stay manual-submit, since those are free-text edits mid-
+// typing where an immediate re-post per keystroke would be wasteful).
+$fx('fxopt-type').addEventListener('change', () => { fxoptUpdateNotionalUnitLabel(); fxoptConnect(); });
+$fx('fxopt-premium-adjusted').addEventListener('change', fxoptConnect);
+$fx('fxopt-spot-override').addEventListener('input', fxoptApplyOverrides);
+$fx('fxopt-vol-override').addEventListener('input', fxoptApplyOverrides);
+$fx('fxopt-notional').addEventListener('input', fxoptUpdateNotionalValue);
+$fx('fxopt-notional').addEventListener('focus', (event) => { event.target.value = fxStripCommas(event.target.value); });
+$fx('fxopt-notional').addEventListener('blur', (event) => { event.target.value = fxFormatWithCommas(fxStripCommas(event.target.value)); });
+$fx('fxopt-form').addEventListener('submit', (event) => { event.preventDefault(); fxoptConnect(); });
+
+fxoptPopulatePairs();
+const fxoptHadSavedStrike = fxoptLoadSavedSelection();
+fxoptUpdateLabelsForPair();
+// Bootstrap: with no remembered strike, the "1" placeholder is meaningless
+// for whatever pair is selected - post it anyway just to get a first live
+// spot tick, then autofill the strike box with that real spot and re-post,
+// same as a pair change does.
+if (!fxoptHadSavedStrike) fxoptPendingStrikeAutofill = true;
+whenApiReady(fxoptConnect);
+</script>
+
+<script>
+// --- SPX option tab ------------------------------------------------------
+// Unlike the FX Option tab, this reads Bloomberg's own computed greeks for
+// a real listed contract directly - no home-grown pricer here (see
+// spxoption.py's module docstring). The server resolves the requested
+// strike/expiry to the nearest actually-listed contract and polls just
+// that one security on a timer; this script polls the resulting snapshot
+// and applies spot/vol overrides as a Taylor-expansion scenario off the
+// live greeks (not a full reprice - there's no model to rerun at a
+// hypothetical spot/vol).
+
+const $spx = (id) => document.getElementById(id);
+let spxoptLatest = null;
+let spxoptPollTimer = null;
+
+function spxfmt(n, dp) {
+  return (n === null || n === undefined || Number.isNaN(n)) ? '–' : Number(n).toFixed(dp);
+}
+function spxFmtMoney(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '–';
+  const sign = n < 0 ? '-' : '';
+  return sign + '$' + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function spxEscapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+const SPXOPT_STORAGE_KEY = 'spxoption:lastSelection';
+
+function spxoptDefaultExpiry() {
+  // Next Friday - SPX/SPXW list a Friday expiry every week, so this is
+  // always a safe default regardless of what day it is today.
+  const d = new Date();
+  const daysUntilFriday = (5 - d.getDay() + 7) % 7 || 7;
+  d.setDate(d.getDate() + daysUntilFriday);
+  return d.toISOString().slice(0, 10);
+}
+
+function spxoptLoadSavedSelection() {
+  $spx('spxopt-expiry').value = spxoptDefaultExpiry();
+  try {
+    const raw = localStorage.getItem(SPXOPT_STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved.type === 'put' || saved.type === 'call') $spx('spxopt-type').value = saved.type;
+    if (saved.strike) $spx('spxopt-strike').value = saved.strike;
+    if (saved.expiry) $spx('spxopt-expiry').value = saved.expiry;
+    if (saved.contracts) $spx('spxopt-contracts').value = saved.contracts;
+  } catch (err) { /* fall back to defaults */ }
+}
+
+function spxoptSaveSelection() {
+  try {
+    localStorage.setItem(SPXOPT_STORAGE_KEY, JSON.stringify({
+      type: $spx('spxopt-type').value, strike: $spx('spxopt-strike').value,
+      expiry: $spx('spxopt-expiry').value, contracts: $spx('spxopt-contracts').value,
+    }));
+  } catch (err) { /* nothing to persist to */ }
+}
+
+async function spxoptPostInstrument() {
+  spxoptSaveSelection();
+  const body = {
+    strike: $spx('spxopt-strike').value, expiry: $spx('spxopt-expiry').value,
+    type: $spx('spxopt-type').value, contracts: $spx('spxopt-contracts').value || 1,
+  };
+  const status = $spx('spxopt-status');
+  status.textContent = 'connecting…';
+  status.className = 'opt-status';
+  try {
+    const data = await window.pywebview.api.set_spxoption_instrument(body);
+    if (data.error) {
+      $spx('spxopt-error').innerHTML = '<div class="opt-error">' + spxEscapeHtml(data.error) + '</div>';
+      status.textContent = 'error';
+      return;
+    }
+    $spx('spxopt-error').innerHTML = '';
+    const note = $spx('spxopt-snap-note');
+    note.textContent = data.exact ? '' :
+      `Snapped to the nearest listed strike: ${data.strike} (not a listed strike at what you typed).`;
+  } catch (err) {
+    status.textContent = 'request failed';
+    return;
+  }
+  await spxoptPollOnce();
+}
+
+async function spxoptPollOnce() {
+  try {
+    const data = await window.pywebview.api.get_spxoption_snapshot();
+    spxoptRender(data);
+  } catch (err) {
+    $spx('spxopt-status').textContent = 'disconnected (retrying…)';
+    $spx('spxopt-status').className = 'opt-status';
+  }
+}
+
+function spxoptConnect() {
+  if (spxoptPollTimer) clearInterval(spxoptPollTimer);
+  spxoptPostInstrument();
+  spxoptPollTimer = setInterval(spxoptPollOnce, 3000);
+}
+
+// Applies the spot/vol override scenario (2nd-order Taylor off the live
+// greeks - see the tab's own hint text) and renders every stat that
+// depends on it. Called after every poll and on every override edit.
+function spxoptApplyOverrides() {
+  if (!spxoptLatest || spxoptLatest.error) return;
+  const d = spxoptLatest;
+  const spotRaw = $spx('spxopt-spot-override').value.trim();
+  const spotOverridden = spotRaw !== '' && Number(spotRaw) > 0;
+  const spot = spotOverridden ? Number(spotRaw) : d.spot;
+
+  const volRaw = $spx('spxopt-vol-override').value.trim();
+  const volOverridden = volRaw !== '' && Number(volRaw) > 0;
+  const iv = volOverridden ? Number(volRaw) : d.iv_pct;
+
+  const dSpot = spot - d.spot;
+  const dVol = iv - (d.iv_pct || iv);
+  // Linear (delta/vega) terms only - deliberately NO gamma·ΔS² term. Tried
+  // it live: for a 2-day-to-expiry, near-ATM contract (gamma ~0.36) even a
+  // modest ~50pt override sent the quadratic term into the hundreds of
+  // dollars - far past the strike-spot intrinsic ceiling a real option can
+  // never exceed. Short-dated options carry exactly the large gamma that
+  // makes a second-order expansion blow up fastest, which is also exactly
+  // when someone's most likely to reach for this override - so the safer
+  // choice is a merely-approximate linear estimate over a wildly-wrong
+  // quadratic one, not a more "complete" formula that happens to break.
+  let scenarioPrice = d.mid;
+  if (scenarioPrice !== null && scenarioPrice !== undefined) {
+    if (d.delta !== null && d.delta !== undefined) scenarioPrice += d.delta * dSpot;
+    if (d.vega !== null && d.vega !== undefined) scenarioPrice += d.vega * dVol;
+    scenarioPrice = Math.max(0, scenarioPrice);
+  }
+
+  $spx('spxopt-spot').textContent = spxfmt(spot, 2) + (spotOverridden ? ' (override)' : '');
+  $spx('spxopt-iv').textContent = spxfmt(iv, 3) + '%' + (volOverridden ? ' (override)' : '');
+  $spx('spxopt-scenario-price').textContent = (spotOverridden || volOverridden)
+    ? spxfmt(scenarioPrice, 2) + ' (scenario)' : spxfmt(d.mid, 2) + ' (live)';
+}
+
+function spxoptRender(data) {
+  const errBox = $spx('spxopt-error');
+  const status = $spx('spxopt-status');
+  if (data.error) {
+    errBox.innerHTML = '<div class="opt-error">' + spxEscapeHtml(data.error) + '</div>';
+    status.textContent = 'waiting for data';
+    status.className = 'opt-status';
+    spxoptLatest = data;
+    return;
+  }
+  errBox.innerHTML = '';
+  status.textContent = 'live';
+  status.className = 'opt-status live';
+  spxoptLatest = data;
+
+  $spx('spxopt-mid').textContent = spxfmt(data.mid, 2);
+  $spx('spxopt-ticker').textContent = data.ticker + (data.put_call ? ' (' + data.put_call + ')' : '');
+  $spx('spxopt-bidask').textContent = spxfmt(data.bid, 2) + ' / ' + spxfmt(data.ask, 2);
+  $spx('spxopt-spot-age').textContent = data.tag_error ? data.tag_error : '';
+  $spx('spxopt-asof').textContent = data.as_of ? ('as of ' + new Date(data.as_of).toLocaleTimeString()) : '';
+
+  $spx('spxopt-delta').textContent = spxfmt(data.delta, 4);
+  $spx('spxopt-gamma').textContent = spxfmt(data.gamma, 6);
+  $spx('spxopt-vega').textContent = spxfmt(data.vega, 4);
+  $spx('spxopt-theta').textContent = spxfmt(data.theta_per_day, 4);
+  $spx('spxopt-rho').textContent = spxfmt(data.rho, 4);
+
+  $spx('spxopt-premium-total').textContent = spxFmtMoney(data.premium_total);
+  $spx('spxopt-dollar-delta').textContent = spxFmtMoney(data.dollar_delta) + ' / pt';
+  $spx('spxopt-dollar-gamma').textContent = spxFmtMoney(data.dollar_gamma_per_point) + ' / pt';
+
+  spxoptApplyOverrides();
+}
+
+$spx('spxopt-spot-override').addEventListener('input', spxoptApplyOverrides);
+$spx('spxopt-vol-override').addEventListener('input', spxoptApplyOverrides);
+$spx('spxopt-form').addEventListener('submit', (event) => { event.preventDefault(); spxoptConnect(); });
+
+spxoptLoadSavedSelection();
+whenApiReady(spxoptConnect);
 </script>
 </body>
 </html>

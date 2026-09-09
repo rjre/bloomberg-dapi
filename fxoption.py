@@ -75,15 +75,29 @@ Pricing approach and its deliberate approximations
    few pips to a percent at most - negligible next to the option's own
    bid/ask - so the ATM point is plotted at the forward outright itself.
 
-4. **Domestic (quote-currency) discounting is dropped (r_d = 0).** The
-   quoted forward already embeds the *rate differential* through covered
-   interest rate parity, so pricing off Black-76 in the forward measure only
-   drops the *discount factor*, e^(-r_d*T) - for an option days to a couple
-   of years out that's worth basis points on the premium, not real money,
-   next to the option's own bid/ask. (Unlike some sibling tools in this org,
-   Bloomberg *does* carry live deposit/OIS curves per currency - a future
-   version could discount properly - but that's a second project, not a
-   free upgrade folded into this one.)
+4. **Domestic (quote-currency) discounting uses a flat overnight rate, not a
+   full tenor-matched curve.** The quoted forward already embeds the *rate
+   differential* through covered interest rate parity, so Black-76 in the
+   forward measure only needs the *discount factor*, e^(-r_d*T), applied on
+   top - and unlike some sibling tools in this org (whose only rate tag was
+   dead - one stale 2001 print), Bloomberg does carry live short-rate
+   benchmarks per currency (see OVERNIGHT_RATE_TAG). This module fetches
+   that one live overnight print and treats it as flat across the option's
+   whole life - a real, live rate, but not the proper tenor-matched OIS/swap
+   curve a full implementation would build (verifying a correct swap-curve
+   ticker convention across all ten currencies was a bigger project than
+   this pass covers; two currencies - CHF, CAD - have no confirmed clean
+   overnight benchmark at all yet and fall back to undiscounted, r=0,
+   exactly like every currency did before this was added). At today's
+   ~3-5% short rates this is worth real money at the long end - a 2Y
+   option's discount factor is roughly e^(-0.04*2) ≈ 0.92, an ~8% premium
+   difference from undiscounted - not "basis points" the way it is for a
+   few-weeks option. `result["discount_factor"]` and `["quote_rate_pct"]`
+   are always returned so a caller can see exactly what was (or wasn't)
+   applied. Delta/gamma/vega/theta below get the same discount-factor
+   multiply as price; theta specifically omits the further "carry" term
+   from the discount factor's own time-decay (a small residual next to the
+   main correction this adds).
 
 5. **Time interpolation is flat-forward (linear in total variance).** The
    requested expiry almost never lands exactly on one of Bloomberg's quoted
@@ -179,6 +193,60 @@ def tags_for_tenor(base: str, quote: str, tenor: str):
         rr_tag(base, quote, tenor, "10"), bf_tag(base, quote, tenor, "10"),
         fwd_tag(base, quote, tenor),
     ]
+
+
+# Live overnight-rate benchmark per currency, used as a flat discount-rate
+# proxy (see module docstring point 4) - confirmed live and sane (right
+# currency, right order of magnitude) against this Terminal. CHF and CAD are
+# deliberately absent: the tickers tried for them either resolved to the
+# wrong currency (Saudi Riyal, not Swiss Franc) or returned no live price -
+# guessing further wasn't worth the risk of a silently-wrong discount rate,
+# so those two currencies price undiscounted (same as every currency did
+# before this was added) until a clean benchmark is confirmed.
+OVERNIGHT_RATE_TAG = {
+    "USD": "SOFRRATE Index",   # SOFR fixing
+    "EUR": "ESTRON Index",     # ESTR fixing
+    "GBP": "SONIO/N Index",    # SONIA-linked overnight
+    "JPY": "MUTKCALM Index",   # BOJ unsecured overnight call rate
+    "SEK": "SWESTR Index",     # SWESTR fixing
+    "NOK": "NOWA Index",       # NOWA fixing
+}
+
+
+def overnight_rate_tag(ccy: str):
+    return OVERNIGHT_RATE_TAG.get(ccy)
+
+
+USD_LEGGED_PAIRS = G10_PAIRS[:9]  # the 9 pairs with a direct USD leg - every other G10_PAIRS entry is a cross
+
+
+def usd_per_unit(spot_values: dict, ccy: str):
+    """USD per 1 unit of `ccy`, from a {tag: float} spot cache (any dict
+    keyed by spot_tag() results - e.g. the same values already fetched for
+    the currently-priced pair). None if that currency's own USD-legged spot
+    hasn't ticked live yet."""
+    if ccy == "USD":
+        return 1.0
+    for base, quote in USD_LEGGED_PAIRS:
+        if base == ccy:  # quote is USD: spot is USD per 1 base
+            return spot_values.get(spot_tag(base, quote))
+        if quote == ccy:  # base is USD: spot is quote per 1 USD - invert
+            v = spot_values.get(spot_tag(base, quote))
+            return 1.0 / v if v else None
+    return None
+
+
+def gbp_per_unit(spot_values: dict, ccy: str):
+    """GBP per 1 unit of `ccy`, triangulated through USD off the 9
+    USD-legged G10 spot tags (the same triangulation a GBP-denominated desk
+    already does by eye) - None if either leg hasn't ticked live yet."""
+    if ccy == "GBP":
+        return 1.0
+    usd_per_ccy = usd_per_unit(spot_values, ccy)
+    usd_per_gbp = usd_per_unit(spot_values, "GBP")
+    if usd_per_ccy is None or not usd_per_gbp:
+        return None
+    return usd_per_ccy / usd_per_gbp
 
 
 def atm_tags(base: str, quote: str):
@@ -471,11 +539,17 @@ def year_frac(d0, d1):
     return (d1 - d0).days / 365.0
 
 
-def value_option(base, quote, bracket_data, spot, strike, expiry_date, today, is_call):
+def value_option(base, quote, bracket_data, spot, strike, expiry_date, today, is_call, quote_rate_pct=None):
     """bracket_data: [(tenor, tenor_date, smile_or_None), ...], 1 or 2
     entries, as returned by bracket_tenors()/build_tenor_smile(). Raises
     ValueError (with a message fit to show the user) if any bracket tenor's
-    smile isn't built yet, or if `expiry_date` isn't in the future."""
+    smile isn't built yet, or if `expiry_date` isn't in the future.
+
+    `quote_rate_pct`: the quote currency's overnight rate (see
+    OVERNIGHT_RATE_TAG), as a percent (4.96, not 0.0496) - applied as a flat
+    discount factor e^(-r*T) (module docstring point 4). None prices
+    undiscounted (r=0), same as before this parameter existed - the caller
+    decides whether a live rate was actually available."""
     years = year_frac(today, expiry_date)
     if years <= 0:
         raise ValueError("expiry date must be in the future")
@@ -490,6 +564,8 @@ def value_option(base, quote, bracket_data, spot, strike, expiry_date, today, is
             "vol_pct": vol, "vol_kind": kind, "forward": smile["forward"],
             "curve": strike_curve(smile["points"]),
             "quoted": [{"strike": p["strike"], "vol": p["vol"], "label": p["label"]} for p in smile["points"]],
+            "tags": [atm_tag(base, quote, tenor), rr_tag(base, quote, tenor, "25"), bf_tag(base, quote, tenor, "25"),
+                     rr_tag(base, quote, tenor, "10"), bf_tag(base, quote, tenor, "10"), fwd_tag(base, quote, tenor)],
         })
 
     if len(legs) == 1:
@@ -507,6 +583,16 @@ def value_option(base, quote, bracket_data, spot, strike, expiry_date, today, is
 
     priced = black76(forward, strike, years, sigma, is_call)
     forward_over_spot = forward / spot
+    # Discount factor on the quote currency's overnight rate (module
+    # docstring point 4) - multiplies price and every P&L-sensitivity greek
+    # below (delta/gamma/vega/theta) the same way it multiplies price itself,
+    # since DF is just a constant scalar outside Black-76's N(d1)/N(d2)
+    # terms. `smile_delta` is deliberately NOT discounted - it's a market-
+    # convention label (what desk means by "a 25-delta put"), not a P&L
+    # figure, and that convention is always quoted on a plain, undiscounted
+    # forward-delta basis regardless of what actually discounts the premium.
+    discount_factor = math.exp(-(quote_rate_pct / 100.0) * years) if quote_rate_pct is not None else 1.0
+    price = priced["price"] * discount_factor
     # Premium as a percentage of the *call currency's* notional - the
     # market's usual way to size premium independent of the notional's
     # currency. A put on the base currency calls the quote currency: 1 unit
@@ -514,18 +600,19 @@ def value_option(base, quote, bracket_data, spot, strike, expiry_date, today, is
     # itself, so %d = price / strike. A call on the base currency calls the
     # base currency instead: %f = price / spot.
     call_ccy = base if is_call else quote
-    premium_pct_call_ccy = priced["price"] / (spot if is_call else strike) * 100.0
+    premium_pct_call_ccy = price / (spot if is_call else strike) * 100.0
     return {
         "pair": pair_label(base, quote), "base": base, "quote": quote,
         "is_call": is_call, "strike": strike,
         "expiry": expiry_date.isoformat(), "days_to_expiry": (expiry_date - today).days,
         "years_to_expiry": years, "spot": spot, "forward": forward, "sigma_pct": sigma * 100.0,
-        "price": priced["price"],
+        "price": price,
+        "discount_factor": discount_factor, "quote_rate_pct": quote_rate_pct,
         "call_ccy": call_ccy, "premium_pct_call_ccy": premium_pct_call_ccy,
-        "delta": priced["delta_f"] * forward_over_spot,
+        "delta": priced["delta_f"] * forward_over_spot * discount_factor,
         "smile_delta": priced["delta_f"],
-        "gamma": priced["gamma_f"] * forward_over_spot ** 2,
-        "vega_per_vol_point": priced["vega"] / 100.0,
-        "theta_per_day": priced["theta_annual"] / 365.0,
+        "gamma": priced["gamma_f"] * forward_over_spot ** 2 * discount_factor,
+        "vega_per_vol_point": priced["vega"] / 100.0 * discount_factor,
+        "theta_per_day": priced["theta_annual"] / 365.0 * discount_factor,
         "legs": legs,
     }
