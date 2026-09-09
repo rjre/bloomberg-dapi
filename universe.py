@@ -49,6 +49,7 @@ UNIVERSE: dict = {
 }
 
 RATES_CATEGORY = "Rates"  # displayed in bps rather than %
+FX_CATEGORY = "FX"  # displayed as bid/ask rather than a single last price
 
 ALL_TICKERS: List[str] = [t for group in UNIVERSE.values() for t, _ in group]
 LABELS: dict = {t: label for group in UNIVERSE.values() for t, label in group}

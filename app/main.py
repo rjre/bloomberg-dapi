@@ -57,10 +57,10 @@ sys.path.insert(0, str(REPO_ROOT))  # for `import bdapi`, `import universe`
 import webview  # noqa: E402
 
 from bdapi import BLPSession, BLPWorker, MarketDataSubscriber, historical_data  # noqa: E402
-from universe import ALL_TICKERS, UNIVERSE, LABELS, CATEGORY_OF, RATES_CATEGORY, build_pulse  # noqa: E402
+from universe import ALL_TICKERS, UNIVERSE, LABELS, CATEGORY_OF, RATES_CATEGORY, FX_CATEGORY, build_pulse  # noqa: E402
 
 # Subscribed once at startup and left open - NOT re-requested on a timer.
-SUBSCRIPTION_FIELDS = ["LAST_PRICE", "RT_PX_CHG_NET_1D", "RT_PX_CHG_PCT_1D", "HIGH", "LOW"]
+SUBSCRIPTION_FIELDS = ["LAST_PRICE", "RT_PX_CHG_NET_1D", "RT_PX_CHG_PCT_1D", "HIGH", "LOW", "BID", "ASK"]
 HISTORY_DAYS = 30
 # If some tickers are still failing (e.g. a capacity limit that hasn't reset
 # yet) after this long, tear down and re-subscribe the whole batch - a failed
@@ -91,7 +91,10 @@ def _row_from_raw(ticker: str) -> dict:
         "chgNet": chg_net,
         "high": field_data.get("HIGH"),
         "low": field_data.get("LOW"),
+        "bid": field_data.get("BID"),
+        "ask": field_data.get("ASK"),
         "isRate": CATEGORY_OF[ticker] == RATES_CATEGORY,
+        "isFx": CATEGORY_OF[ticker] == FX_CATEGORY,
         "lastUpdate": last_update.isoformat() if last_update else None,
     }
 

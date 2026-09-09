@@ -202,6 +202,11 @@ function sparklineSvg(ticker) {
 }
 
 function fmtLast(row) {
+  if (row.isFx) {
+    if (row.bid === null || row.bid === undefined || row.ask === null || row.ask === undefined) return "—";
+    const fmt = v => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    return `${fmt(row.bid)} / ${fmt(row.ask)}`;
+  }
   if (row.last === null || row.last === undefined) return "—";
   if (row.isRate) return row.last.toFixed(3) + "%";
   return row.last.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
