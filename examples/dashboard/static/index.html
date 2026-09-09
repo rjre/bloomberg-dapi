@@ -409,7 +409,134 @@ d1 = [ln(F/K) + ½σ²T] / (σ√T),  d2 = d1 − σ√T</div>
 </div>
 
 <div id="tab-spx" class="tab-panel" hidden>
-<main><div class="stub-panel">SPX volatility &amp; option valuation — coming soon.</div></main>
+<main>
+  <div class="opt-warn">
+    <strong>To do</strong>
+    <ul>
+      <li>Hook up to Aladdin orders: pull SPX option orders and let the user select one for valuation instead of typing it in below.</li>
+      <li>Read the order's contract count/direction so a sale/unwind can be flagged and sized automatically.</li>
+    </ul>
+  </div>
+
+  <div class="opt-panel">
+    <div class="opt-row" style="justify-content:space-between;">
+      <div style="display:flex; gap:24px; align-items:flex-end; flex-wrap:wrap;">
+        <div>
+          <div class="opt-hint" style="margin:0 0 4px;">Mid price</div>
+          <div class="big-price" id="spxopt-mid">–</div>
+        </div>
+        <div>
+          <div class="opt-hint" style="margin:0 0 4px;">Resolved contract</div>
+          <div class="v mono" id="spxopt-ticker" style="font-size:13px;">–</div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <span class="opt-status" id="spxopt-status">connecting…</span>
+        <div class="opt-hint" id="spxopt-asof">–</div>
+      </div>
+    </div>
+    <div id="spxopt-error"></div>
+    <form class="opt-row" id="spxopt-form" style="margin-top:16px;">
+      <div class="opt-field" style="width:150px;">
+        <label for="spxopt-type">Type</label>
+        <select id="spxopt-type">
+          <option value="call">Call</option>
+          <option value="put">Put</option>
+        </select>
+      </div>
+      <div class="opt-field" style="width:140px;">
+        <label for="spxopt-strike">Strike</label>
+        <input id="spxopt-strike" type="number" step="5" value="7650">
+      </div>
+      <div class="opt-field" style="width:150px;">
+        <label for="spxopt-expiry">Expiry</label>
+        <input id="spxopt-expiry" type="date">
+      </div>
+      <div class="opt-field" style="width:120px;">
+        <label for="spxopt-contracts">Contracts</label>
+        <input id="spxopt-contracts" type="number" step="1" min="1" value="1">
+      </div>
+      <div class="opt-field" style="width:auto;"><button type="submit">Revalue</button></div>
+    </form>
+    <p class="opt-hint" id="spxopt-snap-note" style="margin-top:8px;"></p>
+  </div>
+
+  <div class="opt-panel">
+    <div class="opt-row" style="margin-bottom:14px;">
+      <div class="opt-field" style="width:150px;">
+        <label for="spxopt-spot-override">Spot override</label>
+        <input id="spxopt-spot-override" type="number" step="0.01" placeholder="live">
+      </div>
+      <div class="opt-field" style="width:150px;">
+        <label for="spxopt-vol-override">Vol override (%)</label>
+        <input id="spxopt-vol-override" type="number" step="0.01" placeholder="live">
+      </div>
+      <p class="opt-hint" style="flex:1; min-width:220px; margin:0 0 7px;">Leave either blank to use the live
+        value. Unlike the FX Option tab, this isn't a full model reprice — Bloomberg computes this contract's
+        own greeks and there's no second pricer here to rerun (see "How this is priced" below) — so an override
+        instead applies a linear scenario off those live greeks: price + delta·ΔS + vega·Δvol. Deliberately
+        no gamma term — for a short-dated, high-gamma contract that term explodes past what an option could
+        actually be worth for anything but a tiny move. Good for a small move; treat it as a rough estimate,
+        not a repriced quote, for a larger one.</p>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="k">Spot (SPX Index)</div><div class="v" id="spxopt-spot">–</div><div class="age" id="spxopt-spot-age"></div></div>
+      <div class="stat"><div class="k">Bid / Ask</div><div class="v" id="spxopt-bidask">–</div></div>
+      <div class="stat"><div class="k">Implied vol</div><div class="v" id="spxopt-iv">–</div></div>
+      <div class="stat"><div class="k">Scenario price</div><div class="v" id="spxopt-scenario-price">–</div></div>
+    </div>
+  </div>
+
+  <div class="opt-panel">
+    <h2>Greeks (per contract)</h2>
+    <p class="opt-hint">Read directly off Bloomberg's own analytics for this specific listed contract — not
+      re-derived here. Delta/gamma/vega/rho are Bloomberg's DELTA/GAMMA/VEGA/RHO fields; theta is
+      OPT_THETA_MID (the plain THETA field errors "not applicable" on SPX index options — confirmed live).</p>
+    <div class="stat-row">
+      <div class="stat"><div class="k">Delta</div><div class="v" id="spxopt-delta">–</div></div>
+      <div class="stat"><div class="k">Gamma</div><div class="v" id="spxopt-gamma">–</div></div>
+      <div class="stat"><div class="k">Vega</div><div class="v" id="spxopt-vega">–</div></div>
+      <div class="stat"><div class="k">Theta / day</div><div class="v" id="spxopt-theta">–</div></div>
+      <div class="stat"><div class="k">Rho</div><div class="v" id="spxopt-rho">–</div></div>
+    </div>
+  </div>
+
+  <div class="opt-panel">
+    <h2>Position (this many contracts)</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="k">Premium, total</div><div class="v" id="spxopt-premium-total">–</div></div>
+      <div class="stat"><div class="k">Dollar delta</div><div class="v" id="spxopt-dollar-delta">–</div></div>
+      <div class="stat"><div class="k">Dollar gamma / point</div><div class="v" id="spxopt-dollar-gamma">–</div></div>
+    </div>
+    <p class="opt-hint" style="margin-top:8px;">$100/point contract multiplier (standard SPX). Dollar delta is
+      the position's $-per-1-point-move-in-SPX exposure; dollar gamma is how much that itself changes per
+      further 1-point move — deliberately not scaled up to a 1% move (a 1%, ~75pt move is too large for a
+      single point-gamma estimate to stay linear over — see the override note above for the same reason).</p>
+  </div>
+
+  <div class="opt-panel">
+    <h2>How this is priced</h2>
+    <p class="opt-hint">Unlike the FX Option tab, there's no model here at all: SPX/SPXW options are
+      exchange-listed (Cboe), and Bloomberg already carries live bid/ask/last plus its own computed
+      delta/gamma/vega/rho/theta directly on each specific contract. Reading Bloomberg's own analytics for the
+      real listed contract is strictly more faithful than re-deriving a vol surface from moneyness-bucketed
+      fields and running a second, independent pricer on top of it, so that's what this page does.</p>
+    <ul class="opt-hint" style="padding-left:18px;">
+      <li><strong>Strike snapping.</strong> SPX strikes are listed at fixed increments (25pts near the money
+        for near-dated expiries, confirmed live), not at every number — the strike you type is snapped to the
+        nearest one that's actually listed (shown above if it differs from what you typed).</li>
+      <li><strong>The ticker is "SPXW US {expiry} {C|P}{strike} Index".</strong> "SPXW" resolved identical data
+        to "SPX" for every near-dated expiry checked live, so it's used unconditionally rather than guessing
+        which root a given expiry needs.</li>
+      <li><strong>Overrides are a linear (delta/vega) scenario, not a reprice</strong> — see the note above the
+        stats. There's deliberately no independent Black-Scholes model here to rerun at a hypothetical
+        spot/vol (that would be a second, unverified pricer sitting next to Bloomberg's own), and deliberately
+        no gamma term either — tried it live and a modest spot override on a short-dated, high-gamma contract
+        sent the quadratic term past what the option could actually be worth. A plain linear scenario off the
+        live greeks is the honest alternative to either.</li>
+    </ul>
+  </div>
+</main>
 </div>
 
 <div id="tab-emsx" class="tab-panel" hidden>
@@ -1024,6 +1151,195 @@ fxoptUpdateLabelsForPair();
 // same as a pair change does.
 if (!fxoptHadSavedStrike) fxoptPendingStrikeAutofill = true;
 fxoptConnect();
+</script>
+
+<script>
+// --- SPX option tab ------------------------------------------------------
+// Unlike the FX Option tab, this reads Bloomberg's own computed greeks for
+// a real listed contract directly - no home-grown pricer here (see
+// spxoption.py's module docstring). The server resolves the requested
+// strike/expiry to the nearest actually-listed contract and polls just
+// that one security on a timer; this script polls the resulting snapshot
+// and applies spot/vol overrides as a Taylor-expansion scenario off the
+// live greeks (not a full reprice - there's no model to rerun at a
+// hypothetical spot/vol).
+
+const $spx = (id) => document.getElementById(id);
+let spxoptLatest = null;
+let spxoptPollTimer = null;
+
+function spxfmt(n, dp) {
+  return (n === null || n === undefined || Number.isNaN(n)) ? '–' : Number(n).toFixed(dp);
+}
+function spxFmtMoney(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '–';
+  const sign = n < 0 ? '-' : '';
+  return sign + '$' + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function spxEscapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+const SPXOPT_STORAGE_KEY = 'spxoption:lastSelection';
+
+function spxoptDefaultExpiry() {
+  // Next Friday - SPX/SPXW list a Friday expiry every week, so this is
+  // always a safe default regardless of what day it is today.
+  const d = new Date();
+  const daysUntilFriday = (5 - d.getDay() + 7) % 7 || 7;
+  d.setDate(d.getDate() + daysUntilFriday);
+  return d.toISOString().slice(0, 10);
+}
+
+function spxoptLoadSavedSelection() {
+  $spx('spxopt-expiry').value = spxoptDefaultExpiry();
+  try {
+    const raw = localStorage.getItem(SPXOPT_STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved.type === 'put' || saved.type === 'call') $spx('spxopt-type').value = saved.type;
+    if (saved.strike) $spx('spxopt-strike').value = saved.strike;
+    if (saved.expiry) $spx('spxopt-expiry').value = saved.expiry;
+    if (saved.contracts) $spx('spxopt-contracts').value = saved.contracts;
+  } catch (err) { /* fall back to defaults */ }
+}
+
+function spxoptSaveSelection() {
+  try {
+    localStorage.setItem(SPXOPT_STORAGE_KEY, JSON.stringify({
+      type: $spx('spxopt-type').value, strike: $spx('spxopt-strike').value,
+      expiry: $spx('spxopt-expiry').value, contracts: $spx('spxopt-contracts').value,
+    }));
+  } catch (err) { /* nothing to persist to */ }
+}
+
+async function spxoptPostInstrument() {
+  spxoptSaveSelection();
+  const body = {
+    strike: $spx('spxopt-strike').value, expiry: $spx('spxopt-expiry').value,
+    type: $spx('spxopt-type').value, contracts: $spx('spxopt-contracts').value || 1,
+  };
+  const status = $spx('spxopt-status');
+  status.textContent = 'connecting…';
+  status.className = 'opt-status';
+  try {
+    const resp = await fetch('/api/spxoption/instrument', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      $spx('spxopt-error').innerHTML = '<div class="opt-error">' + spxEscapeHtml(data.error) + '</div>';
+      status.textContent = 'error';
+      return;
+    }
+    $spx('spxopt-error').innerHTML = '';
+    const note = $spx('spxopt-snap-note');
+    note.textContent = data.exact ? '' :
+      `Snapped to the nearest listed strike: ${data.strike} (not a listed strike at what you typed).`;
+  } catch (err) {
+    status.textContent = 'request failed';
+    return;
+  }
+  await spxoptPollOnce();
+}
+
+async function spxoptPollOnce() {
+  try {
+    const resp = await fetch('/api/spxoption/snapshot');
+    const data = await resp.json();
+    spxoptRender(data);
+  } catch (err) {
+    $spx('spxopt-status').textContent = 'disconnected (retrying…)';
+    $spx('spxopt-status').className = 'opt-status';
+  }
+}
+
+function spxoptConnect() {
+  if (spxoptPollTimer) clearInterval(spxoptPollTimer);
+  spxoptPostInstrument();
+  spxoptPollTimer = setInterval(spxoptPollOnce, 3000);
+}
+
+// Applies the spot/vol override scenario (2nd-order Taylor off the live
+// greeks - see the tab's own hint text) and renders every stat that
+// depends on it. Called after every poll and on every override edit.
+function spxoptApplyOverrides() {
+  if (!spxoptLatest || spxoptLatest.error) return;
+  const d = spxoptLatest;
+  const spotRaw = $spx('spxopt-spot-override').value.trim();
+  const spotOverridden = spotRaw !== '' && Number(spotRaw) > 0;
+  const spot = spotOverridden ? Number(spotRaw) : d.spot;
+
+  const volRaw = $spx('spxopt-vol-override').value.trim();
+  const volOverridden = volRaw !== '' && Number(volRaw) > 0;
+  const iv = volOverridden ? Number(volRaw) : d.iv_pct;
+
+  const dSpot = spot - d.spot;
+  const dVol = iv - (d.iv_pct || iv);
+  // Linear (delta/vega) terms only - deliberately NO gamma·ΔS² term. Tried
+  // it live: for a 2-day-to-expiry, near-ATM contract (gamma ~0.36) even a
+  // modest ~50pt override sent the quadratic term into the hundreds of
+  // dollars - far past the strike-spot intrinsic ceiling a real option can
+  // never exceed. Short-dated options carry exactly the large gamma that
+  // makes a second-order expansion blow up fastest, which is also exactly
+  // when someone's most likely to reach for this override - so the safer
+  // choice is a merely-approximate linear estimate over a wildly-wrong
+  // quadratic one, not a more "complete" formula that happens to break.
+  let scenarioPrice = d.mid;
+  if (scenarioPrice !== null && scenarioPrice !== undefined) {
+    if (d.delta !== null && d.delta !== undefined) scenarioPrice += d.delta * dSpot;
+    if (d.vega !== null && d.vega !== undefined) scenarioPrice += d.vega * dVol;
+    scenarioPrice = Math.max(0, scenarioPrice);
+  }
+
+  $spx('spxopt-spot').textContent = spxfmt(spot, 2) + (spotOverridden ? ' (override)' : '');
+  $spx('spxopt-iv').textContent = spxfmt(iv, 3) + '%' + (volOverridden ? ' (override)' : '');
+  $spx('spxopt-scenario-price').textContent = (spotOverridden || volOverridden)
+    ? spxfmt(scenarioPrice, 2) + ' (scenario)' : spxfmt(d.mid, 2) + ' (live)';
+}
+
+function spxoptRender(data) {
+  const errBox = $spx('spxopt-error');
+  const status = $spx('spxopt-status');
+  if (data.error) {
+    errBox.innerHTML = '<div class="opt-error">' + spxEscapeHtml(data.error) + '</div>';
+    status.textContent = 'waiting for data';
+    status.className = 'opt-status';
+    spxoptLatest = data;
+    return;
+  }
+  errBox.innerHTML = '';
+  status.textContent = 'live';
+  status.className = 'opt-status live';
+  spxoptLatest = data;
+
+  $spx('spxopt-mid').textContent = spxfmt(data.mid, 2);
+  $spx('spxopt-ticker').textContent = data.ticker + (data.put_call ? ' (' + data.put_call + ')' : '');
+  $spx('spxopt-bidask').textContent = spxfmt(data.bid, 2) + ' / ' + spxfmt(data.ask, 2);
+  $spx('spxopt-spot-age').textContent = data.tag_error ? data.tag_error : '';
+  $spx('spxopt-asof').textContent = data.as_of ? ('as of ' + new Date(data.as_of).toLocaleTimeString()) : '';
+
+  $spx('spxopt-delta').textContent = spxfmt(data.delta, 4);
+  $spx('spxopt-gamma').textContent = spxfmt(data.gamma, 6);
+  $spx('spxopt-vega').textContent = spxfmt(data.vega, 4);
+  $spx('spxopt-theta').textContent = spxfmt(data.theta_per_day, 4);
+  $spx('spxopt-rho').textContent = spxfmt(data.rho, 4);
+
+  $spx('spxopt-premium-total').textContent = spxFmtMoney(data.premium_total);
+  $spx('spxopt-dollar-delta').textContent = spxFmtMoney(data.dollar_delta) + ' / pt';
+  $spx('spxopt-dollar-gamma').textContent = spxFmtMoney(data.dollar_gamma_per_point) + ' / pt';
+
+  spxoptApplyOverrides();
+}
+
+$spx('spxopt-spot-override').addEventListener('input', spxoptApplyOverrides);
+$spx('spxopt-vol-override').addEventListener('input', spxoptApplyOverrides);
+$spx('spxopt-form').addEventListener('submit', (event) => { event.preventDefault(); spxoptConnect(); });
+
+spxoptLoadSavedSelection();
+spxoptConnect();
 </script>
 </body>
 </html>

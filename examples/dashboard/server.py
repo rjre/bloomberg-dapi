@@ -34,6 +34,7 @@ from bdapi import BLPSession, BLPWorker, MarketDataSubscriber, historical_data, 
 
 from universe import ALL_TICKERS, CATEGORY_OF, FX_CATEGORY, LABELS, RATES_CATEGORY, UNIVERSE, build_pulse  # noqa: E402
 import fxoption  # noqa: E402
+import spxoption  # noqa: E402
 
 # Subscribed once at startup and left open - NOT re-requested on a timer.
 SUBSCRIPTION_FIELDS = ["LAST_PRICE", "RT_PX_CHG_NET_1D", "RT_PX_CHG_PCT_1D", "HIGH", "LOW", "BID", "ASK"]
@@ -384,6 +385,117 @@ def get_fxoption_history(pair: str = "EURUSD", tenor: str = "1M") -> JSONRespons
     return JSONResponse({"pair": fxoption.pair_label(base, quote), "tenor": tenor, "dates": dates, "vols": vols})
 
 
+# --- SPX option: realtime valuation off Bloomberg's own listed-option
+# analytics - see spxoption.py's module docstring for why this reads
+# Bloomberg's computed greeks directly rather than building a second,
+# independent model on top (unlike fxoption.py, which has to - there's no
+# per-strike FX option tag to read).
+SPXOPT_FAST_REFRESH_S = 4  # one security's worth of fields - cheap enough for this cadence
+
+_spxopt_lock = threading.Lock()
+_spxopt_instrument = {"ticker": None, "strike": None, "expiry": None, "is_call": True, "contracts": 1.0}
+_spxopt_values: dict = {}   # field -> value, for the one currently-resolved contract
+_spxopt_as_of: Optional[datetime.datetime] = None
+_spxopt_tag_error: Optional[str] = None
+
+
+def _spx_resolve_contract(session, target_strike, expiry_date, is_call):
+    """Runs on the BLPWorker thread (see spxoption.resolve_contract's own
+    docstring for why reference_data_fn/session are passed in rather than
+    imported directly - keeps the module testable without a live session)."""
+    return spxoption.resolve_contract(reference_data, session, target_strike, expiry_date, is_call)
+
+
+def _spxopt_do_fast_refresh() -> None:
+    global _spxopt_as_of, _spxopt_tag_error
+    with _spxopt_lock:
+        ticker = _spxopt_instrument["ticker"]
+    if ticker is None:
+        return
+    try:
+        result = worker.submit(reference_data, [ticker], spxoption.FIELDS).result(timeout=10)
+        values = result["data"].get(ticker, {})
+        with _spxopt_lock:
+            _spxopt_values.clear()
+            _spxopt_values.update(values)
+            _spxopt_as_of = datetime.datetime.now(datetime.timezone.utc)
+            _spxopt_tag_error = f"{len(result['errors'])} tag(s) failed" if result["errors"] else None
+    except Exception as exc:  # noqa: BLE001
+        with _spxopt_lock:
+            _spxopt_tag_error = str(exc)
+        print(f"[spxoption] fast refresh failed: {exc}", file=sys.stderr)
+
+
+def _spxopt_fast_refresh_loop() -> None:
+    while True:
+        time.sleep(SPXOPT_FAST_REFRESH_S)
+        _spxopt_do_fast_refresh()
+
+
+@app.post("/api/spxoption/instrument")
+def set_spxoption_instrument(payload: dict) -> JSONResponse:
+    """Resolves the request to a real, currently-listed contract nearest the
+    requested strike (see spxoption.resolve_contract) and sets it as the one
+    this tab is pricing - "providing the instrument", same as the FX Option
+    tab, standing in for an eventual Aladdin order pull."""
+    try:
+        target_strike = float(payload["strike"])
+        if target_strike <= 0:
+            raise ValueError("strike must be positive")
+        expiry_date = datetime.datetime.strptime(payload["expiry"], "%Y-%m-%d").date()
+        option_type = (payload.get("type") or "call").strip().lower()
+        if option_type not in ("put", "call"):
+            raise ValueError("type must be 'put' or 'call'")
+        contracts = float(payload.get("contracts", 1))
+        if contracts <= 0:
+            raise ValueError("contracts must be positive")
+    except (KeyError, ValueError, TypeError) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    try:
+        resolved = worker.submit(_spx_resolve_contract, target_strike, expiry_date,
+                                  option_type == "call").result(timeout=15)
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"error": str(exc)}, status_code=500)
+    if resolved is None:
+        return JSONResponse({"error": f"no listed SPX contract found near strike {target_strike:g} "
+                                       f"for {expiry_date.isoformat()} - try a nearby strike or expiry"})
+
+    with _spxopt_lock:
+        _spxopt_instrument.update(ticker=resolved["ticker"], strike=resolved["strike"],
+                                   expiry=expiry_date.isoformat(), is_call=(option_type == "call"),
+                                   contracts=contracts)
+        _spxopt_values.clear()
+    _spxopt_do_fast_refresh()
+    return JSONResponse({"ok": True, "ticker": resolved["ticker"], "strike": resolved["strike"],
+                          "exact": resolved["exact"]})
+
+
+@app.get("/api/spxoption/snapshot")
+def get_spxoption_snapshot() -> JSONResponse:
+    with _spxopt_lock:
+        instrument = dict(_spxopt_instrument)
+        values = dict(_spxopt_values)
+        as_of = _spxopt_as_of
+        tag_error = _spxopt_tag_error
+
+    if instrument["ticker"] is None:
+        return JSONResponse({"error": "no instrument selected yet"})
+    with _state_lock:
+        spot = _raw.get("SPX Index", {}).get("LAST_PRICE")
+        spot_update = _last_update.get("SPX Index")
+    if spot is None:
+        return JSONResponse({"error": "waiting for the first live SPX Index tick"})
+
+    snap = spxoption.snapshot(values, instrument["ticker"], spot, contracts=instrument["contracts"])
+    snap["is_call"] = instrument["is_call"]
+    snap["expiry"] = snap["expiry"] or instrument["expiry"]
+    snap["as_of"] = as_of.isoformat() if as_of else None
+    snap["spot_as_of"] = spot_update.isoformat() if spot_update else None
+    snap["tag_error"] = tag_error
+    return JSONResponse(snap)
+
+
 @app.on_event("startup")
 def startup() -> None:
     global worker
@@ -393,6 +505,7 @@ def startup() -> None:
     threading.Thread(target=_subscription_loop, daemon=True).start()
     threading.Thread(target=_fxopt_fast_refresh_loop, daemon=True).start()
     threading.Thread(target=_fxopt_term_refresh_loop, daemon=True).start()
+    threading.Thread(target=_spxopt_fast_refresh_loop, daemon=True).start()
 
 
 @app.get("/api/snapshot")
