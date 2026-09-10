@@ -838,6 +838,16 @@ function fxFormatWithCommas(numStr) {
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return parts.join('.');
 }
+// Notional shorthand: "40m" -> 40,000,000, "1.5b" -> 1,500,000,000, "250k"
+// -> 250,000. A bare number (with or without commas) still parses as
+// itself; anything else that doesn't parse falls back to 0.
+function fxoptParseNotional(raw) {
+  const s = fxStripCommas(String(raw)).trim();
+  const match = s.match(/^(-?\d*\.?\d+)\s*([kmb])?$/i);
+  if (!match) return Number(s) || 0;
+  const mult = { k: 1e3, m: 1e6, b: 1e9 }[(match[2] || '').toLowerCase()] || 1;
+  return Number(match[1]) * mult;
+}
 function fxEscapeHtml(s) {
   const div = document.createElement('div');
   div.textContent = s;
@@ -899,7 +909,7 @@ function fxoptSaveSelection() {
     localStorage.setItem(FXOPT_STORAGE_KEY, JSON.stringify({
       pair: $fx('fxopt-pair').value, type: $fx('fxopt-type').value,
       strike: $fx('fxopt-strike').value, expiry: $fx('fxopt-expiry').value,
-      notional: fxStripCommas($fx('fxopt-notional').value),
+      notional: fxoptParseNotional($fx('fxopt-notional').value),
     }));
   } catch (err) { /* nothing to persist to */ }
 }
@@ -1294,7 +1304,7 @@ function fxoptUpdateNotionalValue() {
   const gbpBox = $fx('fxopt-value-gbp');
   const deltaBox = $fx('fxopt-delta-amount');
   if (!fxoptLatest || fxoptLatest.error || fxoptLastPrice === null) return;
-  const notionalCallCcy = Number(fxStripCommas($fx('fxopt-notional').value)) || 0;
+  const notionalCallCcy = fxoptParseNotional($fx('fxopt-notional').value);
   // Notional is entered in the call currency (whichever currency this
   // option actually calls - see fxoptUpdateNotionalUnitLabel); delta itself
   // is always expressed per unit of *base*-currency notional (fxoption.
@@ -1497,7 +1507,7 @@ $fx('fxopt-spot-override').addEventListener('input', fxoptApplyOverrides);
 $fx('fxopt-vol-override').addEventListener('input', fxoptApplyOverrides);
 $fx('fxopt-notional').addEventListener('input', fxoptUpdateNotionalValue);
 $fx('fxopt-notional').addEventListener('focus', (event) => { event.target.value = fxStripCommas(event.target.value); });
-$fx('fxopt-notional').addEventListener('blur', (event) => { event.target.value = fxFormatWithCommas(fxStripCommas(event.target.value)); });
+$fx('fxopt-notional').addEventListener('blur', (event) => { event.target.value = fxFormatWithCommas(fxoptParseNotional(event.target.value)); });
 $fx('fxopt-form').addEventListener('submit', (event) => { event.preventDefault(); fxoptConnect(); });
 
 fxoptPopulatePairs();
