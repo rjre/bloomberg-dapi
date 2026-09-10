@@ -313,10 +313,6 @@
         <label for="fxopt-expiry">Expiry</label>
         <input id="fxopt-expiry" type="date">
       </div>
-      <div class="opt-field check" style="width:170px;">
-        <label title="Two market conventions exist for turning a quoted '25-delta' smile point into an actual strike. Plain (unchecked) uses the textbook forward delta. Checked uses premium-adjusted delta instead - the convention several pairs (JPY crosses among them) actually quote in practice, which nets the premium's own currency exposure out of the hedge ratio, giving a slightly different strike for the same quoted delta. Nothing here confirms which convention any given pair actually uses, so it's a toggle, not an assumption. Applies immediately.">
-          <input id="fxopt-premium-adjusted" type="checkbox"> Premium-adj. delta</label>
-      </div>
       <div class="opt-field" style="width:auto;"><button type="submit">Revalue</button></div>
     </form>
     <div class="opt-row" style="margin-top:14px;">
@@ -358,13 +354,10 @@
 
     <div class="opt-panel">
       <h2>Greeks <span class="src-tag computed" style="display:inline; margin-left:6px;">[computed — Black-76, discounted]</span></h2>
-      <p class="opt-hint">Delta is the spot hedge ratio (dF/dS ≈ F/S chain rule). Smile Δ is the raw,
-        deliberately undiscounted Black-76 forward delta — a market-convention label ("a 25-delta put"),
-        not a P&amp;L figure. Vega per 1 vol point, theta per calendar day. None are Bloomberg fields — see
-        "How this is priced" below.</p>
+      <p class="opt-hint">Delta is the spot hedge ratio (dF/dS ≈ F/S chain rule). Vega per 1 vol point,
+        theta per calendar day. None are Bloomberg fields — see "How this is priced" below.</p>
       <div class="stat-row">
         <div class="stat"><div class="k">Delta (spot)</div><div class="v" id="fxopt-delta">–</div></div>
-        <div class="stat"><div class="k">Smile Δ (fwd)</div><div class="v" id="fxopt-smile-delta">–</div></div>
         <div class="stat"><div class="k">Gamma</div><div class="v" id="fxopt-gamma">–</div></div>
         <div class="stat"><div class="k">Vega / vol pt</div><div class="v" id="fxopt-vega">–</div></div>
         <div class="stat"><div class="k">Theta / day</div><div class="v" id="fxopt-theta">–</div></div>
@@ -440,10 +433,11 @@ d1 = [ln(F/K) + ½σ²T] / (σ√T),  d2 = d1 − σ√T</div>
         each tenor's ATM vol + 25D/10D risk-reversal &amp; butterfly quotes:
         vol(25D call)=ATM+BF25+½RR25, vol(25D put)=ATM+BF25−½RR25 (and likewise at 10D).</li>
       <li><strong>Strikes are recovered by inverting the forward-delta formula</strong> (d1=N⁻¹(δ) for
-        a call, N⁻¹(1−δ) for a put; K=F·exp(−d1·σ√T+½σ²T)) by default. The "Premium-adj. delta"
-        checkbox switches to that other convention instead (several pairs, JPY crosses among them,
-        quote that way in practice) — nothing here confirms which convention any given pair actually
-        uses, so it's offered rather than silently assumed.</li>
+        a call, N⁻¹(1−δ) for a put; K=F·exp(−d1·σ√T+½σ²T)). Several pairs (JPY crosses among them)
+        actually quote off premium-adjusted delta instead in practice, a different (and not exposed
+        here) strike for the same quoted delta — nothing here confirms which convention any given
+        pair uses, so this is a known simplification, not a claim that plain forward delta is always
+        correct.</li>
       <li><strong>ATM strike ≈ forward.</strong> The true delta-neutral-straddle correction is a few
         pips to a percent at most for these tenors.</li>
       <li><strong>Domestic (quote-currency) discounting is dropped.</strong> The quoted forward already
@@ -889,7 +883,6 @@ function fxoptLoadSavedSelection() {
     if (saved.pair && FXOPT_PAIRS[saved.pair]) $fx('fxopt-pair').value = saved.pair;
     if (saved.type === 'put' || saved.type === 'call') $fx('fxopt-type').value = saved.type;
     if (saved.expiry) $fx('fxopt-expiry').value = saved.expiry;
-    if (typeof saved.premiumAdjusted === 'boolean') $fx('fxopt-premium-adjusted').checked = saved.premiumAdjusted;
     if (saved.notional) $fx('fxopt-notional').value = fxFormatWithCommas(saved.notional);
     if (saved.strike) { $fx('fxopt-strike').value = saved.strike; return true; }
     return false;
@@ -901,7 +894,6 @@ function fxoptSaveSelection() {
     localStorage.setItem(FXOPT_STORAGE_KEY, JSON.stringify({
       pair: $fx('fxopt-pair').value, type: $fx('fxopt-type').value,
       strike: $fx('fxopt-strike').value, expiry: $fx('fxopt-expiry').value,
-      premiumAdjusted: $fx('fxopt-premium-adjusted').checked,
       notional: fxStripCommas($fx('fxopt-notional').value),
     }));
   } catch (err) { /* nothing to persist to */ }
@@ -914,7 +906,6 @@ async function fxoptPostInstrument() {
     strike: $fx('fxopt-strike').value || null,
     expiry: $fx('fxopt-expiry').value,
     type: $fx('fxopt-type').value,
-    premium_adjusted: $fx('fxopt-premium-adjusted').checked,
   };
   if (!body.strike) return;  // wait for autofill (spot arrives via the first poll) before posting
   const status = $fx('fxopt-status');
@@ -1171,7 +1162,6 @@ function fxoptApplyOverrides() {
   $fx('fxopt-vol').textContent = fxfmt(sigmaPct, 3) + '%' + (volOverridden ? ' (override)' : '');
   $fx('fxopt-premium-pct').textContent = fxfmt(pct, 3) + '%';
   $fx('fxopt-delta').textContent = fxfmt(deltaSpot, 4);
-  $fx('fxopt-smile-delta').textContent = fxfmt(priced.deltaF, 4);
   $fx('fxopt-gamma').textContent = fxfmt(gammaSpot, 6);
   $fx('fxopt-vega').textContent = quote + ' ' + fxfmt(vega / 100, 4);
   $fx('fxopt-theta').textContent = quote + ' ' + fxfmt(thetaAnnual / 365, 4);
@@ -1358,13 +1348,12 @@ function fxoptRender(data) {
 }
 
 $fx('fxopt-pair').addEventListener('change', fxoptOnPairChange);
-// Type and premium-adjusted-delta both change how this instrument prices,
-// not just display labels - apply immediately (reconnect) rather than
-// silently waiting for a manual "Revalue" click, which wasn't obvious
-// (strike/expiry stay manual-submit, since those are free-text edits mid-
-// typing where an immediate re-post per keystroke would be wasteful).
+// Type changes how this instrument prices, not just a display label -
+// apply immediately (reconnect) rather than silently waiting for a manual
+// "Revalue" click, which wasn't obvious (strike/expiry stay manual-submit,
+// since those are free-text edits mid-typing where an immediate re-post
+// per keystroke would be wasteful).
 $fx('fxopt-type').addEventListener('change', () => { fxoptUpdateNotionalUnitLabel(); fxoptConnect(); });
-$fx('fxopt-premium-adjusted').addEventListener('change', fxoptConnect);
 $fx('fxopt-spot').addEventListener('click', () => {
   if (fxoptLatest && fxoptLatest.sources && fxoptLatest.sources.spot) {
     terminalConnect(fxoptLatest.sources.spot, 'fxopt-terminal-status');
