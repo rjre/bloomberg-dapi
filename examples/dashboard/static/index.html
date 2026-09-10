@@ -506,7 +506,7 @@ d1 = [ln(F/K) + ½σ²T] / (σ√T),  d2 = d1 − σ√T</div>
         <label for="spxopt-contracts">Contracts</label>
         <input id="spxopt-contracts" type="number" step="1" min="1" value="1">
       </div>
-      <div class="opt-field" style="width:auto;"><button type="submit">Revalue</button></div>
+      <div class="opt-field" style="width:auto;"><button type="submit" id="spxopt-revalue-btn">Revalue</button></div>
     </form>
     <p class="opt-hint" id="spxopt-snap-note" style="margin-top:8px;"></p>
   </div>
@@ -1573,12 +1573,37 @@ function spxoptSaveSelection() {
   } catch (err) { /* nothing to persist to */ }
 }
 
+// "Revalue needed" prompt: every SPX field (type/strike/expiry/contracts)
+// is manual-submit here - none reprice instantly the way FX's Pair/Call leg
+// do - so it's easy to edit one, get distracted, and forget the box no
+// longer matches what's actually priced. Same tracking pattern as the FX
+// Option tab's own version of this.
+let spxoptSubmitted = null;
+
+function spxoptCheckRevaluePending() {
+  const dirty = !spxoptSubmitted
+    || $spx('spxopt-type').value !== spxoptSubmitted.type
+    || $spx('spxopt-strike').value !== spxoptSubmitted.strike
+    || $spx('spxopt-expiry').value !== spxoptSubmitted.expiry
+    || $spx('spxopt-contracts').value !== spxoptSubmitted.contracts;
+  $spx('spxopt-revalue-btn').classList.toggle('revalue-pending', dirty);
+}
+
+function spxoptMarkRevalueClean() {
+  spxoptSubmitted = {
+    type: $spx('spxopt-type').value, strike: $spx('spxopt-strike').value,
+    expiry: $spx('spxopt-expiry').value, contracts: $spx('spxopt-contracts').value,
+  };
+  $spx('spxopt-revalue-btn').classList.remove('revalue-pending');
+}
+
 async function spxoptPostInstrument() {
   spxoptSaveSelection();
   const body = {
     strike: $spx('spxopt-strike').value, expiry: $spx('spxopt-expiry').value,
     type: $spx('spxopt-type').value, contracts: $spx('spxopt-contracts').value || 1,
   };
+  spxoptMarkRevalueClean();  // whatever's in the box now IS what's being submitted, pending or not
   const status = $spx('spxopt-status');
   status.textContent = 'connecting…';
   status.className = 'opt-status';
@@ -1692,6 +1717,10 @@ function spxoptRender(data) {
   spxoptApplyOverrides();
 }
 
+$spx('spxopt-type').addEventListener('change', spxoptCheckRevaluePending);
+$spx('spxopt-strike').addEventListener('input', spxoptCheckRevaluePending);
+$spx('spxopt-expiry').addEventListener('input', spxoptCheckRevaluePending);
+$spx('spxopt-contracts').addEventListener('input', spxoptCheckRevaluePending);
 $spx('spxopt-spot-override').addEventListener('input', spxoptApplyOverrides);
 $spx('spxopt-vol-override').addEventListener('input', spxoptApplyOverrides);
 $spx('spxopt-spot').addEventListener('click', () => terminalConnect('SPX Index', 'spxopt-terminal-status'));
