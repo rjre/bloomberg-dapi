@@ -230,6 +230,11 @@
   .terminal-status { font-size: 10.5px; margin-top: 2px; min-height: 13px; }
   .terminal-status.ok { color: var(--up); }
   .terminal-status.err { color: var(--down); }
+
+  /* --- "Revalue" pending prompt -------------------------------------------- */
+  @keyframes revaluePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(78,154,51,0.55); } 50% { box-shadow: 0 0 0 6px rgba(78,154,51,0); } }
+  button.revalue-pending { background: var(--accent); border-color: var(--accent); color: #fff;
+                            animation: revaluePulse 1.4s ease-out infinite; }
 </style>
 </head>
 <body>
@@ -306,14 +311,14 @@
         </select>
       </div>
       <div class="opt-field" style="width:140px;">
-        <label for="fxopt-strike">Strike (<span id="fxopt-strike-unit">–</span>)</label>
-        <input id="fxopt-strike" type="number" step="0.0001" value="1">
+        <label for="fxopt-strike" title="A plain number is used as the strike directly. Or type e.g. '35d' to use the strike sitting at the 35-delta point on the live smile right now (on whichever side Call leg currently says) - resolved off the same smile the vol-smile chart below draws.">Strike (<span id="fxopt-strike-unit">–</span>)</label>
+        <input id="fxopt-strike" type="text" inputmode="decimal" value="1">
       </div>
       <div class="opt-field" style="width:150px;">
         <label for="fxopt-expiry">Expiry</label>
         <input id="fxopt-expiry" type="date">
       </div>
-      <div class="opt-field" style="width:auto;"><button type="submit">Revalue</button></div>
+      <div class="opt-field" style="width:auto;"><button type="submit" id="fxopt-revalue-btn">Revalue</button></div>
     </form>
     <div class="opt-row" style="margin-top:14px;">
       <div class="opt-field" style="width:150px;">
@@ -899,15 +904,126 @@ function fxoptSaveSelection() {
   } catch (err) { /* nothing to persist to */ }
 }
 
+// Lets the strike box accept "35d" (or "35D") as shorthand for "the strike
+// sitting at the 35-delta point on the live smile right now, on whichever
+// side Call leg currently says" - resolved client-side off the same smile
+// curve the vol-smile chart already draws (fxoptLatest.legs[0].curve), via
+// the same smile-consistent Newton's-method inversion fxoption.py's own
+// strike_from_delta_premium_adjusted uses server-side (there the unknown is
+// the delta convention at a *fixed* quoted vol; here it's the strike at a
+// vol that itself moves along the smile, so the vol has to be re-read off
+// the curve at every iterate rather than being fixed up front).
+function fxInvNormCdf(p) {
+  let x = 0;
+  for (let i = 0; i < 100; i++) {
+    const diff = fxNormCdf(x) - p;
+    if (Math.abs(diff) < 1e-12) break;
+    x -= diff / fxNormPdf(x);
+  }
+  return x;
+}
+
+function fxoptVolAtStrike(curve, strike) {
+  if (strike <= curve[0].strike) return curve[0].vol;
+  if (strike >= curve[curve.length - 1].strike) return curve[curve.length - 1].vol;
+  for (let i = 0; i < curve.length - 1; i++) {
+    const a = curve[i], b = curve[i + 1];
+    if (strike >= a.strike && strike <= b.strike) {
+      const frac = (strike - a.strike) / (b.strike - a.strike);
+      return a.vol + (b.vol - a.vol) * frac;
+    }
+  }
+  return curve[curve.length - 1].vol;
+}
+
+function fxoptStrikeFromDeltaPct(deltaPct, isCall) {
+  if (!fxoptLatest || fxoptLatest.error || !fxoptLatest.legs || !fxoptLatest.legs.length) return null;
+  const leg = fxoptLatest.legs[0];  // nearest bracket tenor - a reasonable single smile to solve against
+  const { forward, years } = leg;
+  const delta = deltaPct / 100;
+  const target = isCall ? delta : -delta;  // signed forward delta target - matches fxoption.py's strike_from_delta_premium_adjusted
+  const sqrtT = Math.sqrt(years);
+  const atmVol = (leg.quoted.find(p => p.label === 'ATM') || {}).vol;
+  if (!atmVol) return null;
+  // Seed guess: plain (non-smile-consistent) inversion at ATM vol, then
+  // Newton's method re-reading vol off the actual curve at each iterate.
+  const d1seed = fxInvNormCdf(isCall ? delta : 1 - delta);
+  let K = forward * Math.exp(-d1seed * (atmVol / 100) * sqrtT + 0.5 * (atmVol / 100) ** 2 * years);
+  for (let i = 0; i < 50; i++) {
+    const sigma = fxoptVolAtStrike(leg.curve, K) / 100;
+    const d1 = (Math.log(forward / K) + 0.5 * sigma * sigma * years) / (sigma * sqrtT);
+    const deltaSigned = isCall ? fxNormCdf(d1) : fxNormCdf(d1) - 1;
+    const residual = deltaSigned - target;
+    if (Math.abs(residual) < 1e-6) break;
+    const bump = K * 1e-5;
+    const sigma2 = fxoptVolAtStrike(leg.curve, K + bump) / 100;
+    const d1b = (Math.log(forward / (K + bump)) + 0.5 * sigma2 * sigma2 * years) / (sigma2 * sqrtT);
+    const delta2 = isCall ? fxNormCdf(d1b) : fxNormCdf(d1b) - 1;
+    const deriv = (delta2 - deltaSigned) / bump;
+    if (deriv === 0) break;
+    let step = residual / deriv;
+    step = Math.max(-0.5 * K, Math.min(0.5 * K, step));
+    K -= step;
+  }
+  return K;
+}
+
+// Recognizes "35d", "35 D", "35.5d" etc. in the strike box and resolves it
+// to a live strike before posting - everywhere else in the box, a plain
+// number is used as-is.
+const FXOPT_DELTA_SHORTHAND = /^\s*(\d{1,3}(?:\.\d+)?)\s*d\s*$/i;
+
+// "Revalue needed" prompt: strike/expiry are manual-submit fields (edited
+// live but only actually applied on Revalue, unlike pair/type which apply
+// instantly) - easy to edit one, get distracted, and forget the box no
+// longer matches what's actually priced. Tracks what was last submitted and
+// highlights the button the moment either field drifts from that; cleared
+// the instant a submit goes out (successful or not - a failed submit still
+// means nothing's pending any more, whatever's in the box just failed to
+// price for some other reason).
+let fxoptSubmittedStrike = null, fxoptSubmittedExpiry = null;
+
+function fxoptCheckRevaluePending() {
+  const dirty = $fx('fxopt-strike').value !== fxoptSubmittedStrike
+             || $fx('fxopt-expiry').value !== fxoptSubmittedExpiry;
+  $fx('fxopt-revalue-btn').classList.toggle('revalue-pending', dirty);
+}
+
+function fxoptMarkRevalueClean() {
+  fxoptSubmittedStrike = $fx('fxopt-strike').value;
+  fxoptSubmittedExpiry = $fx('fxopt-expiry').value;
+  $fx('fxopt-revalue-btn').classList.remove('revalue-pending');
+}
+
 async function fxoptPostInstrument() {
   fxoptSaveSelection();
+  let strikeRaw = $fx('fxopt-strike').value;
+  const deltaMatch = strikeRaw.match(FXOPT_DELTA_SHORTHAND);
+  if (deltaMatch) {
+    const deltaPct = Number(deltaMatch[1]);
+    if (!(deltaPct > 0 && deltaPct < 100)) {
+      $fx('fxopt-error').innerHTML = '<div class="opt-error">Delta must be between 0 and 100 (got "'
+        + fxEscapeHtml(strikeRaw) + '")</div>';
+      return;
+    }
+    const isCall = $fx('fxopt-type').value === 'call';
+    const resolved = fxoptStrikeFromDeltaPct(deltaPct, isCall);
+    if (resolved == null) {
+      $fx('fxopt-error').innerHTML = '<div class="opt-error">Can\'t resolve a delta strike yet - '
+        + 'waiting for the live smile to load. Try again in a moment.</div>';
+      return;
+    }
+    strikeRaw = resolved.toFixed(4);
+    $fx('fxopt-strike').value = strikeRaw;
+  }
   const body = {
     pair: $fx('fxopt-pair').value,
-    strike: $fx('fxopt-strike').value || null,
+    strike: strikeRaw || null,
     expiry: $fx('fxopt-expiry').value,
     type: $fx('fxopt-type').value,
   };
   if (!body.strike) return;  // wait for autofill (spot arrives via the first poll) before posting
+  fxoptMarkRevalueClean();  // whatever's in the box now IS what's being submitted, pending or not
   const status = $fx('fxopt-status');
   status.textContent = 'connecting…';
   status.className = 'opt-status';
@@ -1265,6 +1381,22 @@ function fxoptDrawSurface(surface, legs, optionStrike) {
     s += `<text class="axis-label" x="${(first[0] - 6).toFixed(1)}" y="${(first[1] + 3).toFixed(1)}" `
        + `text-anchor="end" fill="${inBracket ? 'var(--accent)' : 'var(--muted)'}">${layer.tenor}</text>`;
 
+    // Hoverable markers at this ribbon's 5 quoted points (P10/P25/ATM/C25/
+    // C10) - a native <title> gives a plain browser tooltip with the exact
+    // strike/vol at each, so you can read off any tenor's smile precisely
+    // instead of just eyeballing the ribbon shape. A larger invisible hit
+    // circle sits under each small visible dot, same trick the term-chart
+    // click targets already use, so they're easy to land the mouse on.
+    const kLo = layer.points[0].strike, kHi = layer.points[layer.points.length - 1].strike;
+    for (const p of layer.points) {
+      const frac = kHi === kLo ? 0.5 : (p.strike - kLo) / (kHi - kLo);
+      const [px, py] = project(i, Math.max(0, Math.min(1, frac)), p.vol);
+      s += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="9" fill="transparent">`
+         + `<title>${layer.tenor} ${p.label}\nVol: ${p.vol.toFixed(3)}%\nStrike: ${fxfmt(p.strike, 4)}</title></circle>`;
+      s += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${inBracket ? 3 : 2}" `
+         + `fill="${color}" opacity="${inBracket ? 1 : 0.85}" pointer-events="none"/>`;
+    }
+
     // Pin this option's own strike onto a bracket tenor's ribbon.
     if (inBracket) {
       const lo = layer.points[0].strike, hi = layer.points[layer.points.length - 1].strike;
@@ -1354,6 +1486,8 @@ $fx('fxopt-pair').addEventListener('change', fxoptOnPairChange);
 // since those are free-text edits mid-typing where an immediate re-post
 // per keystroke would be wasteful).
 $fx('fxopt-type').addEventListener('change', () => { fxoptUpdateNotionalUnitLabel(); fxoptConnect(); });
+$fx('fxopt-strike').addEventListener('input', fxoptCheckRevaluePending);
+$fx('fxopt-expiry').addEventListener('input', fxoptCheckRevaluePending);
 $fx('fxopt-spot').addEventListener('click', () => {
   if (fxoptLatest && fxoptLatest.sources && fxoptLatest.sources.spot) {
     terminalConnect(fxoptLatest.sources.spot, 'fxopt-terminal-status');
