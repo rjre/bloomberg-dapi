@@ -5,3 +5,8 @@ blpapi>=3.24
 # for examples/dashboard
 fastapi>=0.110
 uvicorn>=0.29
+
+# for terminal_connect.py ("Terminal Connect" - pushing a security into the
+# actual Bloomberg Terminal window via Windows UI automation, since blpapi
+# itself has no API for that) - Windows only, same as this whole project
+pywin32>=306

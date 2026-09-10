@@ -34,6 +34,7 @@ from bdapi import BLPSession, BLPWorker, MarketDataSubscriber, historical_data, 
 
 from universe import ALL_TICKERS, CATEGORY_OF, FX_CATEGORY, LABELS, RATES_CATEGORY, UNIVERSE, build_pulse  # noqa: E402
 import fxoption  # noqa: E402
+import terminal_connect  # noqa: E402
 import spxoption  # noqa: E402
 
 # Subscribed once at startup and left open - NOT re-requested on a timer.
@@ -569,12 +570,40 @@ def get_spxoption_snapshot() -> JSONResponse:
     return JSONResponse(snap)
 
 
+def _start_worker_with_retry() -> None:
+    """BLPWorker() creation, with backoff, run entirely off FastAPI's own
+    startup event - `worker.start()` raises if Bloomberg isn't reachable at
+    that exact moment (Terminal not logged in yet, bbcomm still starting up,
+    a transient blip), and running it synchronously inside `startup()` used
+    to mean the *whole HTTP server* never came up at all in that case - not
+    even far enough to serve the static page with a "waiting to connect"
+    message, just silent ECONNREFUSED on port 8008 (confirmed live: this is
+    exactly what happened once the Terminal ended up logged out mid-session).
+    Every other place that calls `worker.submit(...)` already wraps it in a
+    try/except and degrades gracefully (a None or not-yet-connected `worker`
+    just times out the same way a slow Bloomberg call would) - only this
+    startup path and `_load_history()` were unprotected, so those two are
+    what move into the retry loop below; nothing else needed to change."""
+    global worker
+    backoff = 5
+    while True:
+        candidate = BLPWorker()
+        try:
+            candidate.start()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[startup] Bloomberg worker failed to start ({exc}) - retrying in {backoff}s", file=sys.stderr)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 300)
+            continue
+        worker = candidate
+        print("[startup] Bloomberg worker connected", file=sys.stderr)
+        _load_history()
+        return
+
+
 @app.on_event("startup")
 def startup() -> None:
-    global worker
-    worker = BLPWorker()
-    worker.start()
-    _load_history()
+    threading.Thread(target=_start_worker_with_retry, daemon=True).start()
     threading.Thread(target=_subscription_loop, daemon=True).start()
     threading.Thread(target=_fxopt_fast_refresh_loop, daemon=True).start()
     threading.Thread(target=_fxopt_term_refresh_loop, daemon=True).start()
@@ -600,6 +629,18 @@ def get_snapshot() -> JSONResponse:
 def get_history() -> JSONResponse:
     with _state_lock:
         return JSONResponse(dict(_history))
+
+
+@app.post("/api/terminal/open")
+def open_in_terminal(payload: dict) -> JSONResponse:
+    """"Terminal Connect" - see terminal_connect.py's module docstring for
+    how this actually drives the Terminal (Windows UI automation, not a
+    Bloomberg API - blpapi has no "navigate the Terminal UI" call) and its
+    current unverified status."""
+    ticker = (payload.get("ticker") or "").strip()
+    if not ticker:
+        return JSONResponse({"ok": False, "error": "no ticker given"}, status_code=400)
+    return JSONResponse(terminal_connect.open_security(ticker))
 
 
 STATIC_DIR = Path(__file__).parent / "static"

@@ -60,6 +60,7 @@ from bdapi import BLPSession, BLPWorker, MarketDataSubscriber, historical_data, 
 from universe import ALL_TICKERS, UNIVERSE, LABELS, CATEGORY_OF, RATES_CATEGORY, FX_CATEGORY, build_pulse  # noqa: E402
 import fxoption  # noqa: E402
 import spxoption  # noqa: E402
+import terminal_connect  # noqa: E402
 
 # Subscribed once at startup and left open - NOT re-requested on a timer.
 SUBSCRIPTION_FIELDS = ["LAST_PRICE", "RT_PX_CHG_NET_1D", "RT_PX_CHG_PCT_1D", "HIGH", "LOW", "BID", "ASK"]
@@ -578,12 +579,48 @@ class Api:
     def get_spxoption_snapshot(self) -> dict:
         return _spxopt_get_snapshot()
 
+    def open_in_terminal(self, ticker: str) -> dict:
+        """"Terminal Connect" - see terminal_connect.py's module docstring
+        for how this actually drives the Terminal (Windows UI automation,
+        not a Bloomberg API) and its current unverified status."""
+        ticker = (ticker or "").strip()
+        if not ticker:
+            return {"ok": False, "error": "no ticker given"}
+        return terminal_connect.open_security(ticker)
+
+
+def _start_worker_with_retry() -> None:
+    """BLPWorker() creation, with backoff, run off the main thread entirely -
+    `worker.start()` raises if Bloomberg isn't reachable at that exact
+    moment (Terminal not logged in yet, bbcomm still starting up, a
+    transient blip), and running it synchronously before webview.start()
+    used to mean the native window never opened at all in that case - the
+    whole .exe would just fail silently (or print a traceback and exit, if
+    launched from a console) before the user ever saw anything. Every place
+    that calls `worker.submit(...)` already wraps it in a try/except and
+    degrades gracefully (a None or not-yet-connected `worker` just times
+    out the same way a slow Bloomberg call would) - only this startup path
+    and `_load_history()` were unprotected, so those two move into the
+    retry loop below; nothing else needed to change."""
+    global worker
+    backoff = 5
+    while True:
+        candidate = BLPWorker()
+        try:
+            candidate.start()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[startup] Bloomberg worker failed to start ({exc}) - retrying in {backoff}s", file=sys.stderr)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 300)
+            continue
+        worker = candidate
+        print("[startup] Bloomberg worker connected", file=sys.stderr)
+        _load_history()
+        return
+
 
 def start_background() -> None:
-    global worker
-    worker = BLPWorker()
-    worker.start()
-    _load_history()
+    threading.Thread(target=_start_worker_with_retry, daemon=True).start()
     threading.Thread(target=_subscription_loop, daemon=True).start()
     threading.Thread(target=_fxopt_fast_refresh_loop, daemon=True).start()
     threading.Thread(target=_fxopt_term_refresh_loop, daemon=True).start()
@@ -599,6 +636,6 @@ if __name__ == "__main__":
         js_api=api,
         width=1440,
         height=920,
-        background_color="#0a0c10",
+        background_color="#ffffff",
     )
     webview.start()

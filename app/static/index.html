@@ -223,6 +223,13 @@
   .src-tag { display: block; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
              font-size: 9.5px; color: var(--muted); margin-top: 2px; letter-spacing: 0; font-weight: 400; }
   .src-tag.computed { font-style: italic; }
+
+  /* --- Terminal Connect --------------------------------------------------- */
+  .terminal-link { cursor: pointer; border-bottom: 1px dashed var(--accent-bright); }
+  .terminal-link:hover { color: var(--accent-bright); }
+  .terminal-status { font-size: 10.5px; margin-top: 2px; min-height: 13px; }
+  .terminal-status.ok { color: var(--up); }
+  .terminal-status.err { color: var(--down); }
 </style>
 </head>
 <body>
@@ -332,7 +339,7 @@
   <div class="grid" style="align-items:start;">
     <div class="opt-panel">
       <div class="stat-row">
-        <div class="stat"><div class="k">Spot</div><div class="v" id="fxopt-spot">–</div><div class="src-tag" id="fxopt-spot-src"></div><div class="age" id="fxopt-spot-age"></div></div>
+        <div class="stat"><div class="k">Spot</div><div class="v terminal-link" id="fxopt-spot" title="Click to load this pair in the Bloomberg Terminal">–</div><div class="src-tag" id="fxopt-spot-src"></div><div class="age" id="fxopt-spot-age"></div><div class="terminal-status" id="fxopt-terminal-status"></div></div>
         <div class="stat"><div class="k">Forward (interpolated)</div><div class="v" id="fxopt-forward">–</div><div class="src-tag computed" id="fxopt-forward-src"></div></div>
         <div class="stat"><div class="k">Vol used</div><div class="v" id="fxopt-vol">–</div><div class="src-tag computed" id="fxopt-vol-src"></div></div>
         <div class="stat"><div class="k">Time to expiry</div><div class="v" id="fxopt-days">–</div><div class="src-tag computed">[calendar days to expiry]</div></div>
@@ -526,7 +533,7 @@ d1 = [ln(F/K) + ½σ²T] / (σ√T),  d2 = d1 − σ√T</div>
         not a repriced quote, for a larger one.</p>
     </div>
     <div class="stat-row">
-      <div class="stat"><div class="k">Spot (SPX Index)</div><div class="v" id="spxopt-spot">–</div><div class="age" id="spxopt-spot-age"></div></div>
+      <div class="stat"><div class="k">Spot (SPX Index)</div><div class="v terminal-link" id="spxopt-spot" title="Click to load SPX Index in the Bloomberg Terminal">–</div><div class="age" id="spxopt-spot-age"></div><div class="terminal-status" id="spxopt-terminal-status"></div></div>
       <div class="stat"><div class="k">Bid / Ask</div><div class="v" id="spxopt-bidask">–</div></div>
       <div class="stat"><div class="k">Implied vol</div><div class="v" id="spxopt-iv">–</div></div>
       <div class="stat"><div class="k">Scenario price</div><div class="v" id="spxopt-scenario-price">–</div></div>
@@ -615,6 +622,28 @@ try {
   const savedTab = localStorage.getItem(TAB_STORAGE_KEY);
   if (savedTab) activateTab(savedTab);
 } catch (err) { /* falls back to the Dashboard tab already active in the HTML */ }
+
+// --- Terminal Connect ----------------------------------------------------
+// Click a value marked .terminal-link to push its security into the actual
+// Bloomberg Terminal window (see terminal_connect.py - Windows UI
+// automation, not a Bloomberg API call, and unverified end-to-end as of
+// when this was written: the Terminal wasn't logged in on this machine to
+// test the keystroke-sending step against). `statusElId` gets a brief
+// ok/error message; cleared after a few seconds either way.
+async function terminalConnect(ticker, statusElId) {
+  const statusEl = document.getElementById(statusElId);
+  if (statusEl) { statusEl.textContent = 'opening…'; statusEl.className = 'terminal-status'; }
+  try {
+    const data = await window.pywebview.api.open_in_terminal(ticker);
+    if (statusEl) {
+      statusEl.textContent = data.ok ? `sent to ${data.panel}` : data.error;
+      statusEl.className = 'terminal-status ' + (data.ok ? 'ok' : 'err');
+    }
+  } catch (err) {
+    if (statusEl) { statusEl.textContent = 'request failed'; statusEl.className = 'terminal-status err'; }
+  }
+  if (statusEl) setTimeout(() => { statusEl.textContent = ''; }, 5000);
+}
 
 const CATEGORY_ORDER = ["Equities", "Rates", "FX", "Commodities", "Volatility"];
 let history = {};
@@ -1339,6 +1368,11 @@ $fx('fxopt-pair').addEventListener('change', fxoptOnPairChange);
 // typing where an immediate re-post per keystroke would be wasteful).
 $fx('fxopt-type').addEventListener('change', () => { fxoptUpdateNotionalUnitLabel(); fxoptConnect(); });
 $fx('fxopt-premium-adjusted').addEventListener('change', fxoptConnect);
+$fx('fxopt-spot').addEventListener('click', () => {
+  if (fxoptLatest && fxoptLatest.sources && fxoptLatest.sources.spot) {
+    terminalConnect(fxoptLatest.sources.spot, 'fxopt-terminal-status');
+  }
+});
 $fx('fxopt-spot-override').addEventListener('input', fxoptApplyOverrides);
 $fx('fxopt-vol-override').addEventListener('input', fxoptApplyOverrides);
 $fx('fxopt-notional').addEventListener('input', fxoptUpdateNotionalValue);
@@ -1536,6 +1570,7 @@ function spxoptRender(data) {
 
 $spx('spxopt-spot-override').addEventListener('input', spxoptApplyOverrides);
 $spx('spxopt-vol-override').addEventListener('input', spxoptApplyOverrides);
+$spx('spxopt-spot').addEventListener('click', () => terminalConnect('SPX Index', 'spxopt-terminal-status'));
 $spx('spxopt-form').addEventListener('submit', (event) => { event.preventDefault(); spxoptConnect(); });
 
 spxoptLoadSavedSelection();
