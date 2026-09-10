@@ -504,7 +504,7 @@ d1 = [ln(F/K) + ½σ²T] / (σ√T),  d2 = d1 − σ√T</div>
       </div>
       <div class="opt-field" style="width:120px;">
         <label for="spxopt-contracts">Contracts</label>
-        <input id="spxopt-contracts" type="number" step="1" min="1" value="1">
+        <input id="spxopt-contracts" type="text" inputmode="decimal" value="1" title="Shorthand: 1k = 1,000, 2m = 2,000,000 contracts">
       </div>
       <div class="opt-field" style="width:auto;"><button type="submit" id="spxopt-revalue-btn">Revalue</button></div>
     </form>
@@ -1554,6 +1554,15 @@ function spxEscapeHtml(s) {
 
 const SPXOPT_STORAGE_KEY = 'spxoption:lastSelection';
 
+// Contracts shorthand: same k/m/b suffixes as the FX Option notional box,
+// e.g. "1k" -> 1,000 contracts. Always resolves to a whole number, minimum 1.
+function spxoptParseContracts(raw) {
+  const s = fxStripCommas(String(raw)).trim();
+  const match = s.match(/^(-?\d*\.?\d+)\s*([kmb])?$/i);
+  const n = match ? Number(match[1]) * ({ k: 1e3, m: 1e6, b: 1e9 }[(match[2] || '').toLowerCase()] || 1) : Number(s);
+  return Math.max(1, Math.round(n) || 1);
+}
+
 function spxoptDefaultExpiry() {
   // Next Friday - SPX/SPXW list a Friday expiry every week, so this is
   // always a safe default regardless of what day it is today.
@@ -1613,7 +1622,7 @@ async function spxoptPostInstrument() {
   spxoptSaveSelection();
   const body = {
     strike: $spx('spxopt-strike').value, expiry: $spx('spxopt-expiry').value,
-    type: $spx('spxopt-type').value, contracts: $spx('spxopt-contracts').value || 1,
+    type: $spx('spxopt-type').value, contracts: spxoptParseContracts($spx('spxopt-contracts').value),
   };
   spxoptMarkRevalueClean();  // whatever's in the box now IS what's being submitted, pending or not
   const status = $spx('spxopt-status');
@@ -1729,6 +1738,8 @@ $spx('spxopt-type').addEventListener('change', spxoptCheckRevaluePending);
 $spx('spxopt-strike').addEventListener('input', spxoptCheckRevaluePending);
 $spx('spxopt-expiry').addEventListener('input', spxoptCheckRevaluePending);
 $spx('spxopt-contracts').addEventListener('input', spxoptCheckRevaluePending);
+$spx('spxopt-contracts').addEventListener('focus', (event) => { event.target.value = fxStripCommas(event.target.value); });
+$spx('spxopt-contracts').addEventListener('blur', (event) => { event.target.value = fxFormatWithCommas(spxoptParseContracts(event.target.value)); });
 $spx('spxopt-spot-override').addEventListener('input', spxoptApplyOverrides);
 $spx('spxopt-vol-override').addEventListener('input', spxoptApplyOverrides);
 $spx('spxopt-spot').addEventListener('click', () => terminalConnect('SPX Index', 'spxopt-terminal-status'));
