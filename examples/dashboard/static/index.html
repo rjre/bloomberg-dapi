@@ -275,7 +275,6 @@
     <ul>
       <li>Hook up to Aladdin orders: pull FXO orders and let the user select one for valuation instead of typing it in below.</li>
       <li>Read the order's notional/direction so a sale/unwind can be flagged and sized automatically.</li>
-      <li>Terminal connect: click the spot (or any live field) to load that security in the actual Bloomberg Terminal.</li>
     </ul>
   </div>
 
@@ -467,7 +466,6 @@ d1 = [ln(F/K) + ½σ²T] / (σ√T),  d2 = d1 − σ√T</div>
     <ul>
       <li>Hook up to Aladdin orders: pull SPX option orders and let the user select one for valuation instead of typing it in below.</li>
       <li>Read the order's contract count/direction so a sale/unwind can be flagged and sized automatically.</li>
-      <li>Terminal connect: click the spot (or any live field) to load that security in the actual Bloomberg Terminal.</li>
     </ul>
   </div>
 
@@ -625,10 +623,11 @@ try {
 
 // --- Terminal Connect ----------------------------------------------------
 // Click a value marked .terminal-link to push its security into the actual
-// Bloomberg Terminal window (see terminal_connect.py - Windows UI
-// automation, not a Bloomberg API call, and unverified end-to-end as of
-// when this was written: the Terminal wasn't logged in on this machine to
-// test the keystroke-sending step against). `statusElId` gets a brief
+// Bloomberg Terminal, via Bloomberg's own Terminal Connect API (see
+// terminal_connect.py) - confirmed live and running on this machine, but
+// needs this application registered with Bloomberg for an API key before
+// it'll actually run a function (until then this reports that error
+// clearly rather than silently failing). `statusElId` gets a brief
 // ok/error message; cleared after a few seconds either way.
 async function terminalConnect(ticker, statusElId) {
   const statusEl = document.getElementById(statusElId);

@@ -634,9 +634,9 @@ def get_history() -> JSONResponse:
 @app.post("/api/terminal/open")
 def open_in_terminal(payload: dict) -> JSONResponse:
     """"Terminal Connect" - see terminal_connect.py's module docstring for
-    how this actually drives the Terminal (Windows UI automation, not a
-    Bloomberg API - blpapi has no "navigate the Terminal UI" call) and its
-    current unverified status."""
+    how this drives the Terminal (Bloomberg's own Terminal Connect GraphQL
+    API - confirmed live on this machine, but needs an API key registered
+    with Bloomberg for this application before it'll actually run)."""
     ticker = (payload.get("ticker") or "").strip()
     if not ticker:
         return JSONResponse({"ok": False, "error": "no ticker given"}, status_code=400)

@@ -581,8 +581,10 @@ class Api:
 
     def open_in_terminal(self, ticker: str) -> dict:
         """"Terminal Connect" - see terminal_connect.py's module docstring
-        for how this actually drives the Terminal (Windows UI automation,
-        not a Bloomberg API) and its current unverified status."""
+        for how this drives the Terminal (Bloomberg's own Terminal Connect
+        GraphQL API - confirmed live on this machine, but needs an API key
+        registered with Bloomberg for this application before it'll
+        actually run)."""
         ticker = (ticker or "").strip()
         if not ticker:
             return {"ok": False, "error": "no ticker given"}

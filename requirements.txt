@@ -6,7 +6,8 @@ blpapi>=3.24
 fastapi>=0.110
 uvicorn>=0.29
 
-# for terminal_connect.py ("Terminal Connect" - pushing a security into the
-# actual Bloomberg Terminal window via Windows UI automation, since blpapi
-# itself has no API for that) - Windows only, same as this whole project
-pywin32>=306
+# terminal_connect.py ("Terminal Connect" - pushing a security into the
+# actual Bloomberg Terminal) talks to Bloomberg's own local Terminal Connect
+# GraphQL server over plain HTTP (stdlib urllib) - no extra package needed.
+# Set the TERMINAL_CONNECT_API_KEY environment variable once your
+# application is registered with Bloomberg (see terminal_connect.py).
