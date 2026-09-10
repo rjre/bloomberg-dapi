@@ -125,7 +125,7 @@
     font-weight: 700;
   }
   table { width: 100%; border-collapse: collapse; }
-  td { padding: 9px 16px; font-size: 13.5px; border-top: 1px solid #1a1f28; transition: background-color 0.6s ease; }
+  td { padding: 9px 16px; font-size: 13.5px; border-top: 1px solid #1a1f28; transition: background-color 3s ease; }
   tr:first-child td { border-top: none; }
   td.label { color: var(--text); font-weight: 500; }
   td.label .ts { display: block; font-size: 10px; font-weight: 400; color: var(--muted); margin-top: 2px; }
@@ -212,8 +212,8 @@
   /* --- FX option "wow" polish -------------------------------------------- */
   @keyframes priceFlashUp   { 0% { background: rgba(47,143,70,0.22); } 100% { background: transparent; } }
   @keyframes priceFlashDown { 0% { background: rgba(179,38,30,0.18); } 100% { background: transparent; } }
-  .price-flash-up   { animation: priceFlashUp 1s ease-out; border-radius: 8px; }
-  .price-flash-down { animation: priceFlashDown 1s ease-out; border-radius: 8px; }
+  .price-flash-up   { animation: priceFlashUp 3s ease-out; border-radius: 8px; }
+  .price-flash-down { animation: priceFlashDown 3s ease-out; border-radius: 8px; }
   @keyframes livePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(47,143,70,0.45); } 50% { box-shadow: 0 0 0 5px rgba(47,143,70,0); } }
   .opt-status.live { animation: livePulse 2s ease-out infinite; }
   .hero-price-wrap { position: relative; padding: 4px 10px; margin: -4px -10px; }
